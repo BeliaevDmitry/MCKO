@@ -16,9 +16,9 @@ public class PdfProcessor {
 
     public static void main(String[] args) {
         // Укажите путь к папке с PDF файлами
-        String folderPath = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\МЦКО\\на обработку\\списки";
+        String folderPath = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\МЦКО\\на обработку\\списки";
         // Укажите путь для сохранения Excel файла
-        String outputExcelPath = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ 7\\ВСОКО\\МЦКО\\ФИО_код.xlsx";
+        String outputExcelPath = "C:\\Users\\dimah\\Yandex.Disk\\ГБОУ №7\\МЦКО\\ФИО_код.xlsx";
 
         try {
             List<StudentData> allStudents = new ArrayList<>();
