@@ -26,38 +26,7 @@ import java.util.regex.Pattern;
 @Service
 public class ListProcessingServiceImpl implements ListProcessingService {
 
-    public Map<String, List<ArchiveEntry>> dispatchArchiveProcessing(
-            List<ArchiveEntry> archiveEntries) {
-
-        Map<String, List<ArchiveEntry>> result = new HashMap<>();
-        result.put("CODE_LISTS", new ArrayList<>());
-        result.put("RESULTS", new ArrayList<>());
-
-        // паттерн: минимум 4 цифры после _pm
-        Pattern resultPattern = Pattern.compile(".*_pm\\d{4,}.*", Pattern.CASE_INSENSITIVE);
-
-        for (ArchiveEntry entry : archiveEntries) {
-            String fileName = entry.getEntryPath();
-            String lowerFileName = fileName.toLowerCase();
-
-            // 1. Списки кодов (PDF)
-            if (lowerFileName.endsWith(".pdf") &&
-                    (lowerFileName.contains("список кодов диагностик") ||
-                            lowerFileName.contains("список кодов"))) {
-                result.get("CODE_LISTS").add(entry);
-            }
-            // 2. Файлы с результатами (_pm + минимум 4 цифры)
-            else if (resultPattern.matcher(fileName).matches()) {
-                result.get("RESULTS").add(entry);
-            }
-            // 3. Остальные пропускаем
-        }
-
-        return result;
-    }
-
-
-    /**
+        /**
      * Метод принимает адреса файлов, обрабатывает только "Списки участников"
      * возвращает списки студентов и их коды для сопоставления
      *

@@ -23,6 +23,6 @@ public class AppConfig {
             "C:\\Users\\dimah\\Yandex.Disk\\{школа}\\МЦКО\\ФИО_код.xlsx";
 
     // Дополнительные константы м
-    public static final boolean ENABLE_ARCHIVE_MOVE = true;
+    public static final boolean ENABLE_MOVE = false; //переносить файлы или нет true переносить
     public static final int BATCH_SIZE = 100;
 }

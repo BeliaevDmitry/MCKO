@@ -1,20 +1,21 @@
 package org.school.MckoReport.MckoCompleks.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
+import org.school.MckoReport.MckoCompleks.model.FileCategory;
 import org.school.MckoReport.MckoCompleks.service.FindFilesService;
 
 import java.io.FileInputStream;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
+import java.util.*;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -416,7 +417,7 @@ public class FindFilesServiceImpl implements FindFilesService {
         String fileName = path.getFileName().toString().toLowerCase();
 
         // Пытаемся определить предмет по имени файла
-        if (fileName.contains("фкг") || fileName.contains("функциональн")) {
+        if (fileName.contains("фг") || fileName.contains("функциональн")) {
             return "Функциональная грамотность";
         } else if (fileName.contains("мат")) {
             return "Математика";
@@ -450,5 +451,232 @@ public class FindFilesServiceImpl implements FindFilesService {
         }
 
         return "Другие предметы"; // fallback
+    }
+
+    /**
+     * Анализирует имена файлов, возвращает необходимые адреса по типам:
+     * 1. FG_PDF - файлы с "ФГ" в названии и PDF формат
+     * 2. EXCEL - Excel файлы (.xlsx, .xls)
+     * 3. OTHER - все остальные файлы
+     *
+     * @param pathsEntries список записей для обработки
+     * @return карта результатов обработки по типам файлов
+     */
+    @Override
+    public Map<String, List<Path>> dispatchProcessing(List<Path> pathsEntries) {
+        Map<String, List<Path>> result = new HashMap<>();
+        result.put(FileCategory.FG_PDF.name(), new ArrayList<>());   // PDF с "ФГ"
+        result.put(FileCategory.EXCEL.name(), new ArrayList<>());    // Excel файлы
+        result.put(FileCategory.OTHER.name(), new ArrayList<>());    // Все остальное
+
+        if (pathsEntries == null || pathsEntries.isEmpty()) {
+            log.info("Список путей для классификации пуст");
+            return result;
+        }
+
+        log.info("Начало классификации {} файлов", pathsEntries.size());
+
+        int fgPdfCount = 0;
+        int excelCount = 0;
+        int otherCount = 0;
+
+        for (Path path : pathsEntries) {
+            if (path == null) {
+                continue;
+            }
+
+            String fileName = path.getFileName().toString();
+            String lowerFileName = fileName.toLowerCase();
+
+            try {
+                // 1. Проверяем существование файла
+                if (!Files.exists(path)) {
+                    log.warn("Файл не существует: {}", path);
+                    result.get("OTHER").add(path);
+                    otherCount++;
+                    continue;
+                }
+
+                // 2. Классификация
+                if (isFgPdfFile(lowerFileName, fileName)) {
+                    result.get(FileCategory.FG_PDF.name()).add(path);
+                    fgPdfCount++;
+                    log.debug("FG_PDF: {}", fileName);
+                } else if (isExcelFile(lowerFileName)) {
+                    result.get(FileCategory.EXCEL.name()).add(path);
+                    excelCount++;
+                    log.debug("EXCEL: {}", fileName);
+                } else {
+                    result.get(FileCategory.OTHER.name()).add(path);
+                    otherCount++;
+                    log.debug("OTHER: {}", fileName);
+                }
+
+            } catch (Exception e) {
+                log.error("Ошибка при обработке файла {}: {}", fileName, e.getMessage());
+                result.get("OTHER").add(path);
+                otherCount++;
+            }
+        }
+
+        log.info("Классификация завершена:");
+        log.info("  FG_PDF файлов: {}", fgPdfCount);
+        log.info("  EXCEL файлов: {}", excelCount);
+        log.info("  OTHER файлов: {}", otherCount);
+
+        // Подробное логирование для категории OTHER
+        logOtherFilesDetails(result.get("OTHER"));
+
+        return result;
+    }
+
+    /**
+     * Проверяет, является ли файл PDF с "ФГ" в названии
+     */
+    private boolean isFgPdfFile(String lowerFileName, String originalFileName) {
+        // Проверяем расширение PDF
+        if (!lowerFileName.endsWith(".pdf")) {
+            return false;
+        }
+
+        // Проверяем наличие "ФГ" или "ФКГ" в любом регистре
+        boolean containsFg = lowerFileName.contains("фг") ||
+                originalFileName.contains("ФГ") ||
+                lowerFileName.contains("фкг") ||
+                originalFileName.contains("ФКГ");
+
+        // Также проверяем полное название "функциональная грамотность"
+        boolean containsFullName = lowerFileName.contains("функциональн");
+
+        return containsFg || containsFullName;
+    }
+
+    /**
+     * Проверяет, является ли файл Excel
+     */
+    private boolean isExcelFile(String lowerFileName) {
+        return lowerFileName.endsWith(".xlsx") ||
+                lowerFileName.endsWith(".xls");
+    }
+
+    /**
+     * Подробное логирование файлов в категории OTHER
+     */
+    private void logOtherFilesDetails(List<Path> otherFiles) {
+        if (otherFiles.isEmpty()) {
+            log.info("В категорию OTHER не попало ни одного файла");
+            return;
+        }
+
+        log.info("=== ПОДРОБНЫЙ ОТЧЕТ ПО КАТЕГОРИИ OTHER ===");
+        log.info("Всего файлов в OTHER: {}", otherFiles.size());
+
+        // Группируем по расширениям
+        Map<String, List<Path>> byExtension = new HashMap<>();
+
+        for (Path path : otherFiles) {
+            String fileName = path.getFileName().toString();
+            String extension = getFileExtension(fileName).toLowerCase();
+
+            byExtension.computeIfAbsent(extension, k -> new ArrayList<>())
+                    .add(path);
+        }
+
+        // Выводим статистику по расширениям
+        log.info("Распределение по расширениям:");
+        byExtension.forEach((ext, files) -> {
+            log.info("  .{} : {} файлов", ext.isEmpty() ? "без расширения" : ext, files.size());
+
+            // Для PDF файлов (которые не ФГ) выводим примеры
+            if ("pdf".equals(ext) && !files.isEmpty()) {
+                log.info("    Примеры PDF (не ФГ):");
+                for (int i = 0; i < Math.min(3, files.size()); i++) {
+                    log.info("      • {}", files.get(i).getFileName());
+                }
+            }
+        });
+
+        // Выводим все файлы OTHER если их немного
+        if (otherFiles.size() <= 20) {
+            log.info("Список всех файлов в OTHER:");
+            for (Path path : otherFiles) {
+                String fileName = path.getFileName().toString();
+                String extension = getFileExtension(fileName);
+                log.info("  • {} [.{}]", fileName, extension.isEmpty() ? "?" : extension);
+            }
+        } else {
+            // Если много файлов - только первые 10
+            log.info("Первые 10 файлов в OTHER:");
+            for (int i = 0; i < Math.min(10, otherFiles.size()); i++) {
+                String fileName = otherFiles.get(i).getFileName().toString();
+                String extension = getFileExtension(fileName);
+                log.info("  • {} [.{}]", fileName, extension.isEmpty() ? "?" : extension);
+            }
+        }
+
+        log.info("========================================");
+    }
+
+    /**
+     * Извлекает расширение файла
+     */
+    private String getFileExtension(String fileName) {
+        int lastDot = fileName.lastIndexOf('.');
+        return lastDot > 0 ? fileName.substring(lastDot + 1) : "";
+    }
+
+    /**
+     * Дополнительная проверка: действительно ли файл PDF (по сигнатуре)
+     */
+    private boolean isActuallyPdf(Path path) {
+        try {
+            if (Files.size(path) < 4) {
+                return false;
+            }
+
+            try (InputStream is = Files.newInputStream(path)) {
+                byte[] header = new byte[4];
+                if (is.read(header) == 4) {
+                    // PDF сигнатура: %PDF
+                    return header[0] == 0x25 && // %
+                            header[1] == 0x50 && // P
+                            header[2] == 0x44 && // D
+                            header[3] == 0x46;   // F
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Не удалось проверить сигнатуру файла: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    public Map<String, List<ArchiveEntry>> dispatchArchiveProcessing(
+            List<ArchiveEntry> archiveEntries) {
+
+        Map<String, List<ArchiveEntry>> result = new HashMap<>();
+        result.put("CODE_LISTS", new ArrayList<>());
+        result.put("RESULTS", new ArrayList<>());
+
+        // паттерн: минимум 4 цифры после _pm
+        Pattern resultPattern = Pattern.compile(".*_pm\\d{4,}.*", Pattern.CASE_INSENSITIVE);
+
+        for (ArchiveEntry entry : archiveEntries) {
+            String fileName = entry.getEntryPath();
+            String lowerFileName = fileName.toLowerCase();
+
+            // 1. Списки кодов (PDF)
+            if (lowerFileName.endsWith(".pdf") &&
+                    (lowerFileName.contains("список кодов диагностик") ||
+                            lowerFileName.contains("список кодов"))) {
+                result.get("CODE_LISTS").add(entry);
+            }
+            // 2. Файлы с результатами (_pm + минимум 4 цифры)
+            else if (resultPattern.matcher(fileName).matches()) {
+                result.get("RESULTS").add(entry);
+            }
+            // 3. Остальные пропускаем
+        }
+
+        return result;
     }
 }

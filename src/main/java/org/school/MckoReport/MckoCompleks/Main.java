@@ -24,7 +24,8 @@ public class Main implements CommandLineRunner {
     public void run(String... args) {
         try {
             log.info("Начинаем обработку школ: {}", AppConfig.SCHOOLS);
-            generalService.processListCod();
+           // generalService.processListCod();
+            generalService.processFGResult();
             log.info("✅ Обработка успешно завершена!");
         } catch (Exception e) {
             log.error("❌ Критическая ошибка при обработке: {}", e.getMessage(), e);
@@ -41,7 +42,7 @@ public class Main implements CommandLineRunner {
         System.out.println("  📊 Шаблон для отчетов: " + AppConfig.OUTPUT_FILE_PATCH);
         System.out.println("  🏫 Школы для обработки: " + AppConfig.SCHOOLS);
         System.out.println("  🔧 Размер пакета: " + AppConfig.BATCH_SIZE);
-        System.out.println("  📦 Перемещение архивов: " + (AppConfig.ENABLE_ARCHIVE_MOVE ? "ВКЛ" : "ВЫКЛ"));
+        System.out.println("  📦 Перемещение архивов: " + (AppConfig.ENABLE_MOVE ? "ВКЛ" : "ВЫКЛ"));
         System.out.println("=".repeat(80));
     }
 }
