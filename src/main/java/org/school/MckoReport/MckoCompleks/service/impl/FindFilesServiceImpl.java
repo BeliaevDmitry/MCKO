@@ -474,6 +474,9 @@ public class FindFilesServiceImpl implements FindFilesService {
             return result;
         }
 
+        // паттерн: минимум 4 цифры после _pm
+        Pattern resultPattern = Pattern.compile(".*_pm\\d{4,}.*", Pattern.CASE_INSENSITIVE);
+
         log.info("Начало классификации {} файлов", pathsEntries.size());
 
         int fgPdfCount = 0;
@@ -489,6 +492,10 @@ public class FindFilesServiceImpl implements FindFilesService {
             String lowerFileName = fileName.toLowerCase();
 
             try {
+                if (!resultPattern.matcher(fileName).matches()) {
+                    continue;
+                }
+
                 // 1. Проверяем существование файла
                 if (!Files.exists(path)) {
                     log.warn("Файл не существует: {}", path);
