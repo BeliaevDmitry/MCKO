@@ -3,7 +3,6 @@ package org.school.MckoReport.MckoCompleks.service.impl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
-import org.school.MckoReport.MckoCompleks.model.StudentResultData;
 import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
 import org.school.MckoReport.MckoCompleks.service.ResultFGProcessorService;
 import org.springframework.stereotype.Service;
@@ -16,9 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static org.apache.poi.ooxml.util.POIXMLUnits.parsePercent;
-
 
 @Slf4j
 @Service

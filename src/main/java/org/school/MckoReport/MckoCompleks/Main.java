@@ -24,8 +24,9 @@ public class Main implements CommandLineRunner {
     public void run(String... args) {
         try {
             log.info("Начинаем обработку школ: {}", AppConfig.SCHOOLS);
-           // generalService.processListCod();
-            generalService.processFGResult();
+            // generalService.processListCod();
+            // generalService.processFGResult();
+            generalService.processResult();
             log.info("✅ Обработка успешно завершена!");
         } catch (Exception e) {
             log.error("❌ Критическая ошибка при обработке: {}", e.getMessage(), e);

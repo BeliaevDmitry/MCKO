@@ -465,8 +465,8 @@ public class FindFilesServiceImpl implements FindFilesService {
     @Override
     public Map<String, List<Path>> dispatchProcessing(List<Path> pathsEntries) {
         Map<String, List<Path>> result = new HashMap<>();
-        result.put(FileCategory.FG_PDF.name(), new ArrayList<>());   // PDF с "ФГ"
-        result.put(FileCategory.EXCEL.name(), new ArrayList<>());    // Excel файлы
+        result.put(FileCategory.FG_PDF_RESULTS.name(), new ArrayList<>());   // PDF с "ФГ"
+        result.put(FileCategory.EXCEL_RESULTS.name(), new ArrayList<>());    // Excel файлы
         result.put(FileCategory.OTHER.name(), new ArrayList<>());    // Все остальное
 
         if (pathsEntries == null || pathsEntries.isEmpty()) {
@@ -506,11 +506,11 @@ public class FindFilesServiceImpl implements FindFilesService {
 
                 // 2. Классификация
                 if (isFgPdfFile(lowerFileName, fileName)) {
-                    result.get(FileCategory.FG_PDF.name()).add(path);
+                    result.get(FileCategory.FG_PDF_RESULTS.name()).add(path);
                     fgPdfCount++;
                     log.debug("FG_PDF: {}", fileName);
                 } else if (isExcelFile(lowerFileName)) {
-                    result.get(FileCategory.EXCEL.name()).add(path);
+                    result.get(FileCategory.EXCEL_RESULTS.name()).add(path);
                     excelCount++;
                     log.debug("EXCEL: {}", fileName);
                 } else {

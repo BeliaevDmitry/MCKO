@@ -4,10 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.MckoReport.MckoCompleks.Config.AppConfig;
 import org.school.MckoReport.MckoCompleks.expextion.ProcessingException;
-import org.school.MckoReport.MckoCompleks.model.ArchiveEntry;
-import org.school.MckoReport.MckoCompleks.model.FileCategory;
-import org.school.MckoReport.MckoCompleks.model.ListStudentData;
-import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
+import org.school.MckoReport.MckoCompleks.model.*;
 import org.school.MckoReport.MckoCompleks.repository.ListStudentDataRepository;
 import org.school.MckoReport.MckoCompleks.repository.StudentResultDataRepository;
 import org.school.MckoReport.MckoCompleks.repository.StudentResultFGDataRepository;
@@ -32,6 +29,7 @@ public class GeneralService {
     private final StudentResultDataRepository studentResultDataRepository;
     private final StudentResultFGDataRepository studentResultFGDataRepository;
     private final ResultFGProcessorService resultFGProcessorService;
+    private final ResultProcessorService resultProcessorService;
 
     public void processListCod() {
         log.info("Начало обработки для {} школ", AppConfig.SCHOOLS.size());
@@ -163,7 +161,7 @@ public class GeneralService {
                 Map<String, List<Path>> dispatch =
                         findFilesService.dispatchProcessing(filesList);
 
-                List<Path> resultFiles = dispatch.getOrDefault(FileCategory.FG_PDF.name(),
+                List<Path> resultFiles = dispatch.getOrDefault(FileCategory.FG_PDF_RESULTS.name(),
                         Collections.emptyList());
 
                 log.info("Файлов ФГ: {}", resultFiles.size());
@@ -210,17 +208,17 @@ public class GeneralService {
             }
         }
 
-        // 5. Перемещаем  если включено
+        // 5. Перемещаем если включено
         if (AppConfig.ENABLE_MOVE && !successfullyProcessed.isEmpty()) {
             try {
                 boolean moved = findFilesService.moveToSubjectFolder(successfullyProcessed);
                 if (moved) {
-                    log.info("✅ Успешно перемещено {} архивов", successfullyProcessed.size());
+                    log.info("✅ Успешно перемещено {} файлов ФГ", successfullyProcessed.size());
                 } else {
-                    log.warn("⚠ Не все архивы удалось переместить");
+                    log.warn("⚠ Не все файлы ФГ удалось переместить");
                 }
             } catch (Exception e) {
-                log.error("❌ Ошибка при перемещении файлов: {}", e.getMessage());
+                log.error("❌ Ошибка при перемещении файлов ФГ: {}", e.getMessage());
                 // НЕ откатываем транзакцию БД
             }
         }
@@ -230,7 +228,107 @@ public class GeneralService {
         log.info("  🏫 Обработано школ: {}", AppConfig.SCHOOLS.size());
         log.info("  ✅ Успешных файлов: {}", totalProcessed);
         log.info("  ❌ Ошибок: {}", totalFailed);
-        log.info("  📦 Перемещено архивов: {}", successfullyProcessed.size());
+        log.info("  📦 Перемещено файлов ФГ: {}", successfullyProcessed.size());
+        log.info("=".repeat(50));
+    }
+
+    public void processResult() {
+        log.info("Начало обработки для {} школ", AppConfig.SCHOOLS.size());
+
+        int totalProcessed = 0;
+        int totalFailed = 0;
+        List<Path> successfullyProcessed = new ArrayList<>();
+
+        for (String schoolName : AppConfig.SCHOOLS) {
+            try {
+                // 1. Формируем путь для школы
+                String folderPath = AppConfig.FOLDER_PATCH.replace("{школа}", schoolName);
+                log.info("Обработка школы: {} (путь: {})", schoolName, folderPath);
+
+                // 2. Получаем список файлов
+                List<Path> filesList = findFilesService.findRegularFiles(
+                        Path.of(folderPath)
+                );
+
+                log.info("Найдено  записей: {}", filesList.size());
+
+                if (filesList.isEmpty()) {
+                    log.warn("Для школы {} не найдено файлов", schoolName);
+                    continue;
+                }
+
+                // 3. Классифицируем файлы
+                Map<String, List<Path>> dispatch =
+                        findFilesService.dispatchProcessing(filesList);
+
+                List<Path> resultFiles = dispatch.getOrDefault(FileCategory.EXCEL_RESULTS.name(),
+                        Collections.emptyList());
+
+                log.info("Файлов с результатами: {}", resultFiles.size());
+
+                // 4. Обрабатываем каждый файл
+                for (Path path : resultFiles) {
+                    try {
+                        List<StudentResultData> result =
+                                resultProcessorService.extractStudentsResult(path);
+
+                        if (!result.isEmpty()) {
+                            // Сохраняем пакетами если нужно
+                            if (AppConfig.BATCH_SIZE > 0 && result.size() > AppConfig.BATCH_SIZE) {
+                                saveInBatchesResult(result, AppConfig.BATCH_SIZE);
+                            } else {
+                                studentResultDataRepository.saveAll(result);
+                            }
+
+                            totalProcessed += result.size();
+
+                            // Добавляем в список успешно обработанных
+
+                            if (!successfullyProcessed.contains(path)) {
+                                successfullyProcessed.add(path);
+                            }
+
+                            log.info("Файл {} обработан успешно, сохранено {} студентов",
+                                    path.getFileName(), result.size());
+                        } else {
+                            log.warn("Файл {} не содержит данных о студентах",
+                                    path.getFileName());
+                        }
+
+                    } catch (ProcessingException e) {
+                        totalFailed++;
+                        log.error("Файл {} не обработан: {}", path.getFileName(), e.getMessage());
+                        // Продолжаем с другими файлами
+                    }
+                }
+
+            } catch (Exception e) {
+                log.error("Ошибка обработки для школы {}: {}", schoolName, e.getMessage(), e);
+                throw new RuntimeException("Ошибка обработки школы " + schoolName, e);
+            }
+        }
+
+        // 5. Перемещаем если включено
+        if (AppConfig.ENABLE_MOVE && !successfullyProcessed.isEmpty()) {
+            try {
+                boolean moved = findFilesService.moveToSubjectFolder(successfullyProcessed);
+                if (moved) {
+                    log.info("✅ Успешно перемещено {} результатов XLXS", successfullyProcessed.size());
+                } else {
+                    log.warn("⚠ Не все результаты XLXS удалось переместить");
+                }
+            } catch (Exception e) {
+                log.error("❌ Ошибка при перемещении результатов XLXS: {}", e.getMessage());
+                // НЕ откатываем транзакцию БД
+            }
+        }
+
+        log.info("=".repeat(50));
+        log.info("📊 ИТОГИ ОБРАБОТКИ:");
+        log.info("  🏫 Обработано школ: {}", AppConfig.SCHOOLS.size());
+        log.info("  ✅ Успешных файлов: {}", totalProcessed);
+        log.info("  ❌ Ошибок: {}", totalFailed);
+        log.info("  📦 Перемещено результатов XLXS: {}", successfullyProcessed.size());
         log.info("=".repeat(50));
     }
 
@@ -249,6 +347,15 @@ public class GeneralService {
             List<StudentResultFGData> batch = resultFGData.subList(i, end);
             studentResultFGDataRepository.saveAll(batch);
             log.debug("Сохранен пакет {}-{} из {}", i + 1, end, resultFGData.size());
+        }
+    }
+
+    private void saveInBatchesResult(List<StudentResultData> resultData, int batchSize) {
+        for (int i = 0; i < resultData.size(); i += batchSize) {
+            int end = Math.min(resultData.size(), i + batchSize);
+            List<StudentResultData> batch = resultData.subList(i, end);
+            studentResultDataRepository.saveAll(batch);
+            log.debug("Сохранен пакет {}-{} из {}", i + 1, end, resultData.size());
         }
     }
 }
