@@ -5,6 +5,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.school.MckoReport.MckoCompleks.model.StudentResultData;
 import org.school.MckoReport.MckoCompleks.service.ResultProcessorService;
+import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
 import org.school.MckoReport.MckoCompleks.util.TaskScoresConverter;
 import org.springframework.stereotype.Service;
 
@@ -342,7 +343,9 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
         data.setParallel(getCellIntValue(row.getCell(indexes.parallelIdx)));
         data.setLetter(getCellStringValue(row.getCell(indexes.letterIdx)));
         data.setSubject(getCellStringValue(row.getCell(indexes.subjectIdx)));
-        data.setDate(getCellStringValue(row.getCell(indexes.dateIdx)));
+        String  date = getCellStringValue(row.getCell(indexes.dateIdx));
+        String dateNormal = DateNormalizerUtil.normalizeDate(date);
+        data.setDate(dateNormal);
 
         // Номер ученика
         String studentNum = getCellValueAsString(row.getCell(indexes.studentNumberIdx));

@@ -21,6 +21,9 @@ public class StudentResultFGData {
      @Column(name = "code", length = 100)
      private String code;
 
+     @Column(name = "school", nullable = false)
+     private String school;
+
      @Column(name = "class_name", length = 50)
      private String className;
 

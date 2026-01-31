@@ -85,4 +85,12 @@ public interface StudentResultDataRepository extends
     List<StudentResultData> findByCodeContaining(String codePart);
 
     List<StudentResultData> findByCodeStartingWith(String prefix);
+
+    // Новые методы для комбинированного поиска
+    List<StudentResultData> findBySchoolAndSubjectAndDate(String school, String subject, String date);
+
+    List<StudentResultData> findBySchoolAndClassNameAndSubjectAndDate(
+            String school, String className, String subject, String date);
+
+    List<StudentResultData> findByCodeAndSubjectAndDate(String code, String subject, String date);
 }

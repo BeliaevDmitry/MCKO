@@ -7,6 +7,7 @@ import org.school.MckoReport.MckoCompleks.expextion.ProcessingException;
 import org.school.MckoReport.MckoCompleks.model.ArchiveEntry;
 import org.school.MckoReport.MckoCompleks.model.ListStudentData;
 import org.school.MckoReport.MckoCompleks.service.ListProcessingService;
+import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
 import org.springframework.stereotype.Service;
 
 
@@ -227,6 +228,11 @@ public class ListProcessingServiceImpl implements ListProcessingService {
 
             // Извлекаем метаданные из имени файла
             String date = extractDateFromFileName(fileName);
+            log.debug("Извлекаем метаданные из имени файла String date {}" +
+                    "fileName {}", date, fileName);
+            date =DateNormalizerUtil.normalizeDateWithFileFallback(date,fileName);
+            log.debug("Извлекаем метаданные из имени файла String date " +
+                    "после DateNormalizerUtil {}", date);
 
 
             // Извлекаем все метаданные

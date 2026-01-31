@@ -40,7 +40,7 @@ logging:
     # Ваше приложение
     org.school.MckoReport: WARN
     org.school.MckoReport.MckoCompleks: WARN
-    org.school.MckoReport.MckoCompleks.service: WARN
+    org.school.MckoReport.MckoCompleks.service.ExcelExportService: WARN
 
     # База данных и пул соединений
     com.zaxxer.hikari: WARN
