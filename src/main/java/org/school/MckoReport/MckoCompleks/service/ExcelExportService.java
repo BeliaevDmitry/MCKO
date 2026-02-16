@@ -5,13 +5,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.school.MckoReport.MckoCompleks.dto.CombinedResultData;
+import org.school.MckoReport.MckoCompleks.model.ListStudentData;
+import org.school.MckoReport.MckoCompleks.model.StudentResultData;
+import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
 import org.school.MckoReport.MckoCompleks.util.TaskScoresConverter;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +26,16 @@ public class ExcelExportService {
      * Создать Excel файл с двумя вкладками
      */
     public byte[] exportToExcel(List<CombinedResultData> data) throws IOException {
+        return exportToExcel(data, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+    }
+
+    /**
+     * Создать Excel файл с листами результатов и сводкой по работам.
+     */
+    public byte[] exportToExcel(List<CombinedResultData> data,
+                                List<ListStudentData> allStudents,
+                                List<StudentResultData> allStudentResults,
+                                List<StudentResultFGData> allStudentFGResults) throws IOException {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             log.debug("длина List<CombinedResultData> data в exportToExcel перед передачей в генератор эксель {}", data.size());
@@ -35,6 +47,10 @@ public class ExcelExportService {
 
             // Вкладка 2: Функциональная грамотность
             createFGSheet(workbook, data, headerStyle, "Функциональная грамотность");
+
+            Map<String, WorkSummary> workSummaryMap = buildWorkSummaryMap(allStudents, allStudentResults, allStudentFGResults);
+            createAllWorksSheet(workbook, workSummaryMap, headerStyle, "Все работы");
+            createMissingWorksSheet(workbook, workSummaryMap, headerStyle, "Незагруженные работы");
 
             // Записываем в массив байтов
             workbook.write(outputStream);
@@ -146,5 +162,150 @@ public class ExcelExportService {
         style.setAlignment(HorizontalAlignment.CENTER);
         style.setVerticalAlignment(VerticalAlignment.CENTER);
         return style;
+    }
+
+    private Map<String, WorkSummary> buildWorkSummaryMap(List<ListStudentData> allStudents,
+                                                         List<StudentResultData> allStudentResults,
+                                                         List<StudentResultFGData> allStudentFGResults) {
+        Map<String, WorkSummary> workSummaryMap = new LinkedHashMap<>();
+
+        for (ListStudentData student : allStudents) {
+            String key = buildWorkKey(student.getSchool(), student.getSubject(), student.getDate(), student.getClassName());
+            WorkSummary summary = workSummaryMap.computeIfAbsent(key,
+                    k -> new WorkSummary(student.getSchool(), student.getSubject(), student.getDate(), student.getClassName()));
+            summary.childSheetRows++;
+        }
+
+        for (StudentResultData result : allStudentResults) {
+            String key = buildWorkKey(result.getSchool(), result.getSubject(), result.getDate(), result.getClassName());
+            WorkSummary summary = workSummaryMap.computeIfAbsent(key,
+                    k -> new WorkSummary(result.getSchool(), result.getSubject(), result.getDate(), result.getClassName()));
+            summary.resultRows++;
+        }
+
+        for (StudentResultFGData fgResult : allStudentFGResults) {
+            String key = buildWorkKey(fgResult.getSchool(), fgResult.getSubject(), fgResult.getDate(), fgResult.getClassName());
+            WorkSummary summary = workSummaryMap.computeIfAbsent(key,
+                    k -> new WorkSummary(fgResult.getSchool(), fgResult.getSubject(), fgResult.getDate(), fgResult.getClassName()));
+            summary.fgRows++;
+        }
+
+        return workSummaryMap;
+    }
+
+    private void createAllWorksSheet(Workbook workbook,
+                                     Map<String, WorkSummary> workSummaryMap,
+                                     CellStyle headerStyle,
+                                     String sheetName) {
+        Sheet sheet = workbook.createSheet(sheetName);
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {
+                "Школа", "Предмет", "Дата", "Класс",
+                "Строк в листе детей", "Строк в результатах", "Строк в ФГ"
+        };
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        int rowNum = 1;
+        for (WorkSummary summary : workSummaryMap.values()) {
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(valueOrEmpty(summary.school));
+            row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
+            row.createCell(2).setCellValue(valueOrEmpty(summary.date));
+            row.createCell(3).setCellValue(valueOrEmpty(summary.className));
+            row.createCell(4).setCellValue(summary.childSheetRows);
+            row.createCell(5).setCellValue(summary.resultRows);
+            row.createCell(6).setCellValue(summary.fgRows);
+        }
+
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
+
+    private void createMissingWorksSheet(Workbook workbook,
+                                         Map<String, WorkSummary> workSummaryMap,
+                                         CellStyle headerStyle,
+                                         String sheetName) {
+        Sheet sheet = workbook.createSheet(sheetName);
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {
+                "Школа", "Предмет", "Дата", "Класс", "Проблема",
+                "Строк в листе детей", "Строк в результатах", "Строк в ФГ"
+        };
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        int rowNum = 1;
+        for (WorkSummary summary : workSummaryMap.values()) {
+            List<String> problems = detectProblems(summary);
+            if (problems.isEmpty()) {
+                continue;
+            }
+
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(valueOrEmpty(summary.school));
+            row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
+            row.createCell(2).setCellValue(valueOrEmpty(summary.date));
+            row.createCell(3).setCellValue(valueOrEmpty(summary.className));
+            row.createCell(4).setCellValue(String.join("; ", problems));
+            row.createCell(5).setCellValue(summary.childSheetRows);
+            row.createCell(6).setCellValue(summary.resultRows);
+            row.createCell(7).setCellValue(summary.fgRows);
+        }
+
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
+
+    private List<String> detectProblems(WorkSummary summary) {
+        List<String> problems = new ArrayList<>();
+
+        if (summary.resultRows == 0) {
+            problems.add("Не загружены результаты работы");
+        }
+        if (summary.childSheetRows == 0 && (summary.resultRows > 0 || summary.fgRows > 0)) {
+            problems.add("Не загружен лист с данными детей");
+        }
+
+        return problems;
+    }
+
+    private String buildWorkKey(String school, String subject, String date, String className) {
+        return String.format("%s|%s|%s|%s",
+                valueOrEmpty(school),
+                valueOrEmpty(subject),
+                valueOrEmpty(date),
+                valueOrEmpty(className));
+    }
+
+    private String valueOrEmpty(String value) {
+        return value != null ? value : "";
+    }
+
+    private static class WorkSummary {
+        private final String school;
+        private final String subject;
+        private final String date;
+        private final String className;
+        private int childSheetRows;
+        private int resultRows;
+        private int fgRows;
+
+        private WorkSummary(String school, String subject, String date, String className) {
+            this.school = school;
+            this.subject = subject;
+            this.date = date;
+            this.className = className;
+        }
     }
 }

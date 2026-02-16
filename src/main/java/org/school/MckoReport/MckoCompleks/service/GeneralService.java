@@ -483,7 +483,12 @@ public class GeneralService {
 
             log.debug("длина combinedResults перед передачей в генератор эксель {}", combinedResults.size());
             // Создаем Excel
-            byte[] excelBytes = excelExportService.exportToExcel(combinedResults);
+            byte[] excelBytes = excelExportService.exportToExcel(
+                    combinedResults,
+                    allStudents,
+                    allStudentResults,
+                    allStudentFGResults
+            );
 
             // Сохраняем
             String filePath = saveTotalReportFile(excelBytes, schoolName);
