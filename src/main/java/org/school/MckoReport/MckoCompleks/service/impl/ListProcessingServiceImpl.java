@@ -380,6 +380,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
 
             if (line.contains("ФИО обучающегося") ||
                     line.contains("ФИО участника") ||
+                    line.contains("ФИО учащегося") ||
                     (line.contains("ФИО") && line.contains("Код"))) {
                 inStudentSection = true;
                 continue;
@@ -391,6 +392,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                         line.equals("участника") ||
                         line.equals("обучающегося") ||
                         line.equals("Код участника") ||
+                        line.equals("Номер учащегося") ||
                         line.contains("ФИО") && line.contains("Код")) {
                     continue;
                 }

@@ -24,7 +24,7 @@ public class Main implements CommandLineRunner {
     public void run(String... args) {
         try {
             log.info("Запускаем программу: {}", AppConfig.SCHOOLS);
-            //generalService.processListCod();
+            generalService.processListCod();
             generalService.processFGResult();
             generalService.processResult();
             generalService.createSchoolReports();
