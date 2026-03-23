@@ -79,6 +79,7 @@ public class GeneralService {
                                 listProcessingService.extractStudentsCodFromArchive(fileEntry);
 
                         if (!students.isEmpty()) {
+                            applySchoolName(students, schoolName);
                             // Сохраняем пакетами если нужно
                             if (AppConfig.BATCH_SIZE > 0 && students.size() > AppConfig.BATCH_SIZE) {
                                 saveInBatches(students, AppConfig.BATCH_SIZE);
@@ -180,6 +181,7 @@ public class GeneralService {
                                 resultFGProcessorService.extractStudentsResultFG(path);
 
                         if (!resultFG.isEmpty()) {
+                            applySchoolNameToFG(resultFG, schoolName);
                             // Сохраняем пакетами если нужно
                             if (AppConfig.BATCH_SIZE > 0 && resultFG.size() > AppConfig.BATCH_SIZE) {
                                 saveInBatchesFG(resultFG, AppConfig.BATCH_SIZE);
@@ -280,6 +282,7 @@ public class GeneralService {
                                 resultProcessorService.extractStudentsResult(path);
 
                         if (!result.isEmpty()) {
+                            applySchoolNameToResults(result, schoolName);
                             // Сохраняем пакетами если нужно
                             if (AppConfig.BATCH_SIZE > 0 && result.size() > AppConfig.BATCH_SIZE) {
                                 saveInBatchesResult(result, AppConfig.BATCH_SIZE);
@@ -339,6 +342,24 @@ public class GeneralService {
         log.info("  ❌ Ошибок: {}", totalFailed);
         log.info("  📦 Перемещено результатов XLXS: {}", successfullyProcessed.size());
         log.info("=".repeat(50));
+    }
+
+    private void applySchoolName(List<ListStudentData> students, String schoolName) {
+        for (ListStudentData student : students) {
+            student.setSchool(schoolName);
+        }
+    }
+
+    private void applySchoolNameToFG(List<StudentResultFGData> results, String schoolName) {
+        for (StudentResultFGData result : results) {
+            result.setSchool(schoolName);
+        }
+    }
+
+    private void applySchoolNameToResults(List<StudentResultData> results, String schoolName) {
+        for (StudentResultData result : results) {
+            result.setSchool(schoolName);
+        }
     }
 
     private void saveInBatches(List<ListStudentData> students, int batchSize) {
