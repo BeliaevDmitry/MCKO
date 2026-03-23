@@ -34,4 +34,7 @@ public class ListStudentData {
 
     @Column (name = "school")
     String school;
+
+    @Column(name = "student_number")
+    private int studentNumber;
 }

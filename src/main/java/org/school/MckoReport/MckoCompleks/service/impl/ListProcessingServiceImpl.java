@@ -248,6 +248,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                 ListStudentData student = ListStudentData.builder()
                         .nameFIO(rawStudent.getNameFIO())
                         .code(rawStudent.getCode())
+                        .studentNumber(rawStudent.getStudentNumber())
                         .className(className)
                         .subject(subject)
                         .date(date)
@@ -374,6 +375,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
         String[] lines = text.split("\n");
 
         boolean inStudentSection = false;
+        int studentCounter = 0; // счётчик студентов
 
         for (String s : lines) {
             String line = s.trim();
@@ -412,10 +414,12 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                             name.contains(" ") &&
                             name.matches(".*[А-ЯЁ][а-яё]+.*[А-ЯЁ][а-яё]+.*")) {
 
+                        studentCounter++;
                         ListStudentData student = new ListStudentData();
                         student.setNameFIO(name);
                         student.setCode(code);
                         students.add(student);
+                        student.setStudentNumber(studentCounter);
                     }
                 }
             }

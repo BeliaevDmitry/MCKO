@@ -75,7 +75,6 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
 
     // Индексы для фиксированных колонок (будут определены при анализе заголовка)
     private static class ColumnIndexes {
-
         int schoolIdx = -1;
         int parallelIdx = -1;
         int letterIdx = -1;
@@ -87,20 +86,15 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
         int codeIdx = -1;
         int ballIdx = -1;
         int percentIdx = -1;
-
         int markIdx = -1;
-        // Динамические индексы заданий (от Код диагн. до Балл)
         List<Integer> taskColumnsStartIdx = new ArrayList<>();
 
-        List<Integer> taskColumnsEndIdx = new ArrayList<>();
-        boolean isValid() {
+        // Обязательные колонки (без codeIdx и markIdx)
+        boolean hasRequiredColumns() {
             return schoolIdx >= 0 && parallelIdx >= 0 && letterIdx >= 0
                     && subjectIdx >= 0 && dateIdx >= 0 && nameIdx >= 0
-                    && studentNumberIdx >= 0 && variantIdx >= 0
-                    && codeIdx >= 0 && ballIdx >= 0 && percentIdx >= 0
-                    && markIdx >= 0;
+                    && variantIdx >= 0 && ballIdx >= 0 && percentIdx >= 0;
         }
-
     }
 
     /**
@@ -110,70 +104,37 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
     private ColumnIndexes validateAndGetIndexes(Row headerRow) {
         ColumnIndexes indexes = new ColumnIndexes();
 
-        // Поиск индексов фиксированных заголовков
         for (int i = 0; i < headerRow.getLastCellNum(); i++) {
             Cell cell = headerRow.getCell(i);
             if (cell == null) continue;
-
-            // ВАЖНО: Используем общий метод для чтения значения ячейки
             String cellValue = getCellValueAsString(cell);
             if (cellValue == null) continue;
-
-            // Обрезаем пробелы
             cellValue = cellValue.trim();
 
-            // Проверяем фиксированные заголовки
             switch (cellValue) {
-                case "Школа":
-                    indexes.schoolIdx = i;
-                    break;
-                case "Параллель":
-                    indexes.parallelIdx = i;
-                    break;
-                case "Буква":
-                    indexes.letterIdx = i;
-                    break;
-                case "Предмет":
-                    indexes.subjectIdx = i;
-                    break;
-                case "Дата":
-                    indexes.dateIdx = i;
-                    break;
-                case "Фамилия, имя":
-                    indexes.nameIdx = i;
-                    break;
-                case "№ уч.":
-                    indexes.studentNumberIdx = i;
-                    break;
-                case "Вариант":
-                    indexes.variantIdx = i;
-                    break;
-                case "Код диагн.":
-                    indexes.codeIdx = i;
-                    break;
-                case "Балл":
-                    indexes.ballIdx = i;
-                    break;
-                case "% вып.":
-                    indexes.percentIdx = i;
-                    break;
-                case "Отметка":
-                    indexes.markIdx = i;
-                    break;
+                case "Школа": indexes.schoolIdx = i; break;
+                case "Параллель": indexes.parallelIdx = i; break;
+                case "Буква": indexes.letterIdx = i; break;
+                case "Предмет": indexes.subjectIdx = i; break;
+                case "Дата": indexes.dateIdx = i; break;
+                case "Фамилия, имя": indexes.nameIdx = i; break;
+                case "№ уч.": indexes.studentNumberIdx = i; break;
+                case "Вариант": indexes.variantIdx = i; break;
+                case "Код диагн.": indexes.codeIdx = i; break;
+                case "Балл": indexes.ballIdx = i; break;
+                case "% вып.": indexes.percentIdx = i; break;
+                case "Отметка": indexes.markIdx = i; break;
             }
         }
 
-        // 2) Определяем индексы заданий (между Код диагн. и Балл)
+        // Определяем индексы заданий (между Код диагн. и Балл)
         if (indexes.codeIdx >= 0 && indexes.ballIdx >= 0) {
             for (int i = indexes.codeIdx + 1; i < indexes.ballIdx; i++) {
                 Cell cell = headerRow.getCell(i);
                 if (cell != null) {
                     String cellValue = getCellValueAsString(cell);
-                    if (cellValue != null) {
-                        cellValue = cellValue.trim();
-                        // Проверяем, что это не один из конечных заголовков
-                        if (!cellValue.equals("Балл") && !cellValue.equals("% вып.")
-                                && !cellValue.equals("Отметка")) {
+                    if (cellValue != null && !cellValue.trim().isEmpty()) {
+                        if (!cellValue.equals("Балл") && !cellValue.equals("% вып.") && !cellValue.equals("Отметка")) {
                             indexes.taskColumnsStartIdx.add(i);
                         }
                     }
@@ -181,24 +142,22 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
             }
         }
 
-        // Проверяем, что все обязательные заголовки найдены
-        if (!indexes.isValid()) {
-            // Выводим отладочную информацию о том, какие заголовки не найдены
-            System.err.println("Не найдены следующие заголовки:");
-            if (indexes.schoolIdx == -1) System.err.println("  - Школа");
-            if (indexes.parallelIdx == -1) System.err.println("  - Параллель");
-            if (indexes.letterIdx == -1) System.err.println("  - Буква");
-            if (indexes.subjectIdx == -1) System.err.println("  - Предмет");
-            if (indexes.dateIdx == -1) System.err.println("  - Дата");
-            if (indexes.nameIdx == -1) System.err.println("  - Фамилия, имя");
-            if (indexes.studentNumberIdx == -1) System.err.println("  - № уч.");
-            if (indexes.variantIdx == -1) System.err.println("  - Вариант");
-            if (indexes.codeIdx == -1) System.err.println("  - Код диагн.");
-            if (indexes.ballIdx == -1) System.err.println("  - Балл");
-            if (indexes.percentIdx == -1) System.err.println("  - % вып.");
-            if (indexes.markIdx == -1) System.err.println("  - Отметка");
-
-            throw new IllegalArgumentException("Файл имеет неверную структуру. Не найдены все обязательные колонки.");
+        // Проверка обязательных колонок
+        if (!indexes.hasRequiredColumns()) {
+            StringBuilder missing = new StringBuilder();
+            if (indexes.schoolIdx == -1) missing.append("Школа, ");
+            if (indexes.parallelIdx == -1) missing.append("Параллель, ");
+            if (indexes.letterIdx == -1) missing.append("Буква, ");
+            if (indexes.subjectIdx == -1) missing.append("Предмет, ");
+            if (indexes.dateIdx == -1) missing.append("Дата, ");
+            if (indexes.nameIdx == -1) missing.append("Фамилия, имя, ");
+            if (indexes.variantIdx == -1) missing.append("Вариант, ");
+            if (indexes.ballIdx == -1) missing.append("Балл, ");
+            if (indexes.percentIdx == -1) missing.append("% вып., ");
+            if (missing.length() > 0) {
+                missing.setLength(missing.length() - 2);
+                throw new IllegalArgumentException("Файл имеет неверную структуру. Отсутствуют обязательные колонки: " + missing);
+            }
         }
 
         return indexes;
@@ -425,40 +384,7 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
         }
     }
 
-    /**
-     * 4) Собирает остальные данные (фиксированные поля)
-     */
-    private StudentResultData collectOtherData(Row row, ColumnIndexes indexes, String taskResults) {
-        StudentResultData data = new StudentResultData();
 
-        // Парсим фиксированные поля
-        data.setSchool(getCellStringValue(row.getCell(indexes.schoolIdx)));
-        data.setParallel(getCellIntValue(row.getCell(indexes.parallelIdx)));
-        data.setLetter(getCellStringValue(row.getCell(indexes.letterIdx)));
-        data.setSubject(getCellStringValue(row.getCell(indexes.subjectIdx)));
-        data.setDate(getCellStringValue(row.getCell(indexes.dateIdx)));
-
-        // Номер ученика может быть как строкой, так и числом
-        String studentNum = getCellValueAsString(row.getCell(indexes.studentNumberIdx));
-        try {
-            if (studentNum != null && !studentNum.isEmpty()) {
-                data.setStudentNumber(Integer.parseInt(studentNum));
-            }
-        } catch (NumberFormatException e) {
-            System.err.println("Невозможно преобразовать номер ученика: " + studentNum);
-        }
-
-        data.setVariant(getCellIntValue(row.getCell(indexes.variantIdx)));
-        data.setCode(getCellStringValue(row.getCell(indexes.codeIdx)));
-        data.setBall(getCellIntValue(row.getCell(indexes.ballIdx)));
-        data.setPercentCompleted(getCellIntValue(row.getCell(indexes.percentIdx)));
-        data.setMark(getCellIntValue(row.getCell(indexes.markIdx)));
-
-        // Парсим результаты заданий
-        data.setTaskScores(taskResults);
-
-        return data;
-    }
 
     /**
      * Вспомогательные методы для чтения значений ячеек
