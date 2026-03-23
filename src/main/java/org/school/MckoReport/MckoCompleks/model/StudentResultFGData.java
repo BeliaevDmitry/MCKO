@@ -47,4 +47,7 @@ public class StudentResultFGData {
 
      @Column(name = "section3_percent", length = 20)
      private String section3Percent;    //Раздел3
+
+     @Column(name = "school_year", length = 9)
+     private String schoolYear;
 }

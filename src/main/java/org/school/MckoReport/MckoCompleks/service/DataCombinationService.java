@@ -41,6 +41,7 @@ public class DataCombinationService {
 
         // Собираем результаты в Map для быстрого поиска
         Map<String, StudentResultData> resultDataMap = getResultDataMap(school, subject, date, className);
+        Map<String, StudentResultData> resultDataByStudentNumberMap = getResultDataByStudentNumberMap(school, subject, date, className);
 
         // Собираем ФГ результаты в Map для быстрого поиска
         Map<String, StudentResultFGData> fgDataMap = getFGDataMap(school, subject, date, className);
@@ -49,7 +50,7 @@ public class DataCombinationService {
         List<CombinedResultData> combinedResults = new ArrayList<>();
 
         for (ListStudentData student : studentList) {
-            CombinedResultData combined = createCombinedData(student, resultDataMap, fgDataMap);
+            CombinedResultData combined = createCombinedData(student, resultDataMap, resultDataByStudentNumberMap, fgDataMap);
             combinedResults.add(combined);
         }
 
@@ -78,8 +79,28 @@ public class DataCombinationService {
 
         // Создаем ключ для поиска: code_subject_date_school
         return resultData.stream()
+                .filter(data -> hasText(data.getCode()))
                 .collect(Collectors.toMap(
                         data -> generateKey(data.getCode(), data.getSubject(), data.getDate(), data.getSchool()),
+                        Function.identity(),
+                        (existing, replacement) -> existing
+                ));
+    }
+
+    private Map<String, StudentResultData> getResultDataByStudentNumberMap(String school, String subject, String date, String className) {
+        List<StudentResultData> resultData;
+
+        if (className != null && !className.isEmpty()) {
+            resultData = studentResultDataRepository.findBySchoolAndClassNameAndSubjectAndDate(
+                    school, className, subject, date);
+        } else {
+            resultData = studentResultDataRepository.findBySchoolAndSubjectAndDate(school, subject, date);
+        }
+
+        return resultData.stream()
+                .filter(data -> data.getStudentNumber() != null)
+                .collect(Collectors.toMap(
+                        data -> generateStudentNumberKey(data.getStudentNumber(), data.getSubject(), data.getDate(), data.getSchool()),
                         Function.identity(),
                         (existing, replacement) -> existing
                 ));
@@ -91,6 +112,7 @@ public class DataCombinationService {
 
         return allFGData.stream()
                 .filter(data -> matchesCriteria(data, school, subject, date, className))
+                .filter(data -> hasText(data.getCode()))
                 .collect(Collectors.toMap(
                         data -> generateKey(data.getCode(), data.getSubject(), data.getDate(), school),
                         Function.identity(),
@@ -112,15 +134,50 @@ public class DataCombinationService {
         return String.format("%s_%s_%s_%s", code, subject, date, school);
     }
 
+    private String generateStudentNumberKey(Integer studentNumber, String subject, String date, String school) {
+        return String.format("%s_%s_%s_%s", studentNumber, subject, date, school);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private CombinedResultData createCombinedData(
             ListStudentData student,
             Map<String, StudentResultData> resultDataMap,
+            Map<String, StudentResultData> resultDataByStudentNumberMap,
             Map<String, StudentResultFGData> fgDataMap) {
 
-        String key = generateKey(student.getCode(), student.getSubject(), student.getDate(), student.getSchool());
+        StudentResultData resultData = null;
+        if (hasText(student.getCode())) {
+            String key = generateKey(student.getCode(), student.getSubject(), student.getDate(), student.getSchool());
+            resultData = resultDataMap.get(key);
+        }
+        if (resultData == null) {
+            resultData = resultDataByStudentNumberMap.get(
+                    generateStudentNumberKey(student.getStudentNumber(), student.getSubject(), student.getDate(), student.getSchool())
+            );
+        }
+        StudentResultFGData fgData = null;
+        if (hasText(student.getCode())) {
+            String fgKey = generateKey(student.getCode(), student.getSubject(), student.getDate(), student.getSchool());
+            fgData = fgDataMap.get(fgKey);
+        }
 
-        StudentResultData resultData = resultDataMap.get(key);
-        StudentResultFGData fgData = fgDataMap.get(key);
+        String schoolYear = firstNonBlank(
+                student.getSchoolYear(),
+                resultData != null ? resultData.getSchoolYear() : null,
+                fgData != null ? fgData.getSchoolYear() : null
+        );
 
         return CombinedResultData.builder()
                 .nameFIO(student.getNameFIO())
@@ -129,6 +186,7 @@ public class DataCombinationService {
                 .subject(student.getSubject())
                 .date(student.getDate())
                 .school(student.getSchool())
+                .schoolYear(schoolYear)
 
                 // Данные из StudentResultData
                 .parallel(resultData != null ? resultData.getParallel() : null)
@@ -179,6 +237,14 @@ public class DataCombinationService {
                 .distinct()
                 .collect(Collectors.toList());
         options.put("dates", dates);
+
+        List<String> schoolYears = listStudentDataRepository.findAll().stream()
+                .map(ListStudentData::getSchoolYear)
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+        options.put("schoolYears", schoolYears);
 
         // Классы
         List<String> classes = listStudentDataRepository.findAll().stream()

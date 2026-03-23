@@ -54,9 +54,10 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
                     StudentResultData studentData = collectOtherData(row, indexes, taskScores);
 
                     // Проверяем, что есть минимальные данные для сохранения
-                    if (studentData.getSchool() != null &&
-                            studentData.getCode() != null &&
-                            studentData.getBall() != null) {
+                    boolean hasMatchKey = hasText(studentData.getCode()) || studentData.getStudentNumber() != null;
+                    if (hasText(studentData.getSchool()) &&
+                            studentData.getBall() != null &&
+                            hasMatchKey) {
                         allResults.add(studentData);
                     }
 
@@ -93,7 +94,7 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
         boolean hasRequiredColumns() {
             return schoolIdx >= 0 && parallelIdx >= 0 && letterIdx >= 0
                     && subjectIdx >= 0 && dateIdx >= 0 && nameIdx >= 0
-                    && variantIdx >= 0 && ballIdx >= 0 && percentIdx >= 0;
+                    && ballIdx >= 0 && percentIdx >= 0;
         }
     }
 
@@ -127,9 +128,10 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
             }
         }
 
-        // Определяем индексы заданий (между Код диагн. и Балл)
-        if (indexes.codeIdx >= 0 && indexes.ballIdx >= 0) {
-            for (int i = indexes.codeIdx + 1; i < indexes.ballIdx; i++) {
+        // Определяем индексы заданий: после кода диагностики, а если его нет — после варианта
+        int taskStartIdx = indexes.codeIdx >= 0 ? indexes.codeIdx + 1 : (indexes.variantIdx >= 0 ? indexes.variantIdx + 1 : indexes.studentNumberIdx + 1);
+        if (taskStartIdx > 0 && indexes.ballIdx >= 0) {
+            for (int i = taskStartIdx; i < indexes.ballIdx; i++) {
                 Cell cell = headerRow.getCell(i);
                 if (cell != null) {
                     String cellValue = getCellValueAsString(cell);
@@ -151,7 +153,6 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
             if (indexes.subjectIdx == -1) missing.append("Предмет, ");
             if (indexes.dateIdx == -1) missing.append("Дата, ");
             if (indexes.nameIdx == -1) missing.append("Фамилия, имя, ");
-            if (indexes.variantIdx == -1) missing.append("Вариант, ");
             if (indexes.ballIdx == -1) missing.append("Балл, ");
             if (indexes.percentIdx == -1) missing.append("% вып., ");
             if (missing.length() > 0) {
@@ -302,9 +303,10 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
         data.setParallel(getCellIntValue(row.getCell(indexes.parallelIdx)));
         data.setLetter(getCellStringValue(row.getCell(indexes.letterIdx)));
         data.setSubject(getCellStringValue(row.getCell(indexes.subjectIdx)));
-        String  date = getCellStringValue(row.getCell(indexes.dateIdx));
+        String date = getCellStringValue(row.getCell(indexes.dateIdx));
         String dateNormal = DateNormalizerUtil.normalizeDate(date);
         data.setDate(dateNormal);
+        data.setSchoolYear(DateNormalizerUtil.calculateSchoolYear(dateNormal));
 
         // Номер ученика
         String studentNum = getCellValueAsString(row.getCell(indexes.studentNumberIdx));
@@ -316,11 +318,11 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
             }
         }
 
-        data.setVariant(getCellIntValue(row.getCell(indexes.variantIdx)));
-        data.setCode(getCellStringValue(row.getCell(indexes.codeIdx)));
+        data.setVariant(getCellIntValue(getCell(row, indexes.variantIdx)));
+        data.setCode(getCellStringValue(getCell(row, indexes.codeIdx)));
         data.setBall(getCellIntValue(row.getCell(indexes.ballIdx)));
         data.setPercentCompleted(getCellIntValue(row.getCell(indexes.percentIdx)));
-        data.setMark(getCellIntValue(row.getCell(indexes.markIdx)));
+        data.setMark(getCellIntValue(getCell(row, indexes.markIdx)));
 
         // Сохраняем результаты заданий как JSON через конвертер
         data.setTaskScores(taskScoresConverter.mapToJson(taskScores));
@@ -404,6 +406,17 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
             // В случае ошибки возвращаем пустую строку
         }
         return "";
+    }
+
+    private Cell getCell(Row row, int index) {
+        if (row == null || index < 0) {
+            return null;
+        }
+        return row.getCell(index);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private Integer getCellIntValue(Cell cell) {
