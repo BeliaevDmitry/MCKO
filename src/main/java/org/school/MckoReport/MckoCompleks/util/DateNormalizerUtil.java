@@ -56,7 +56,8 @@ public class DateNormalizerUtil {
      */
     public static String normalizeDateWithFileFallback(String rawDate, String filePath) {
         if (rawDate == null || rawDate.trim().isEmpty()) {
-            return extractDateFromFilePath(filePath);
+            String dateFromPath = extractExplicitDateFromFilePath(filePath);
+            return dateFromPath != null ? dateFromPath : LocalDate.now().format(TARGET_FORMATTER);
         }
 
         String trimmedDate = rawDate.trim();
@@ -73,7 +74,7 @@ public class DateNormalizerUtil {
         }
 
         // 2. Пробуем извлечь полную дату из пути
-        String dateFromPath = extractDateFromFilePath(filePath);
+        String dateFromPath = extractExplicitDateFromFilePath(filePath);
         if (dateFromPath != null && isValidDate(dateFromPath)) {
             log.debug("Используется дата из пути файла: {}", dateFromPath);
             return dateFromPath;
@@ -194,9 +195,9 @@ public class DateNormalizerUtil {
     /**
      * Извлекает дату из пути файла
      */
-    private static String extractDateFromFilePath(String filePath) {
+    private static String extractExplicitDateFromFilePath(String filePath) {
         if (filePath == null) {
-            return LocalDate.now().format(TARGET_FORMATTER);
+            return null;
         }
 
         log.debug("Извлечение даты из пути: {}", filePath);
@@ -290,10 +291,9 @@ public class DateNormalizerUtil {
             }
         }
 
-        // Если не нашли дату, используем текущую
-        String currentDate = LocalDate.now().format(TARGET_FORMATTER);
-        log.debug("Дата в пути не найдена, используем текущую: {}", currentDate);
-        return currentDate;
+        // Если явную дату не нашли, возвращаем null
+        log.debug("Дата в пути не найдена");
+        return null;
     }
 
     /**
@@ -474,6 +474,29 @@ public class DateNormalizerUtil {
      */
     public static String normalizeDate(String dateStr) {
         return normalizeDateInternal(dateStr, null);
+    }
+
+    public static String normalizeDatePreferFile(String rawDate, String filePath) {
+        String dateFromPath = extractExplicitDateFromFilePath(filePath);
+        if (dateFromPath != null && isValidDate(dateFromPath)) {
+            return dateFromPath;
+        }
+        return normalizeDateWithFileFallback(rawDate, filePath);
+    }
+
+    public static String calculateSchoolYear(String normalizedDate) {
+        if (!isValidDate(normalizedDate)) {
+            return null;
+        }
+
+        try {
+            LocalDate date = LocalDate.parse(normalizedDate, TARGET_FORMATTER);
+            int startYear = date.getMonthValue() >= 9 ? date.getYear() : date.getYear() - 1;
+            return startYear + "/" + (startYear + 1);
+        } catch (DateTimeParseException e) {
+            log.debug("Не удалось вычислить учебный год для даты: {}", normalizedDate);
+            return null;
+        }
     }
 
     /**
