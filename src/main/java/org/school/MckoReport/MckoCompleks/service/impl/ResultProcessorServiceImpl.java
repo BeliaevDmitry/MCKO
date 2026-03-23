@@ -54,9 +54,10 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
                     StudentResultData studentData = collectOtherData(row, indexes, taskScores);
 
                     // Проверяем, что есть минимальные данные для сохранения
-                    if (studentData.getSchool() != null &&
-                            studentData.getCode() != null &&
-                            studentData.getBall() != null) {
+                    boolean hasMatchKey = hasText(studentData.getCode()) || studentData.getStudentNumber() != null;
+                    if (hasText(studentData.getSchool()) &&
+                            studentData.getBall() != null &&
+                            hasMatchKey) {
                         allResults.add(studentData);
                     }
 
@@ -127,9 +128,10 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
             }
         }
 
-        // Определяем индексы заданий (между Код диагн. и Балл)
-        if (indexes.codeIdx >= 0 && indexes.ballIdx >= 0) {
-            for (int i = indexes.codeIdx + 1; i < indexes.ballIdx; i++) {
+        // Определяем индексы заданий: после кода диагностики, а если его нет — после варианта
+        int taskStartIdx = indexes.codeIdx >= 0 ? indexes.codeIdx + 1 : indexes.variantIdx + 1;
+        if (taskStartIdx > 0 && indexes.ballIdx >= 0) {
+            for (int i = taskStartIdx; i < indexes.ballIdx; i++) {
                 Cell cell = headerRow.getCell(i);
                 if (cell != null) {
                     String cellValue = getCellValueAsString(cell);
@@ -317,10 +319,10 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
         }
 
         data.setVariant(getCellIntValue(row.getCell(indexes.variantIdx)));
-        data.setCode(getCellStringValue(row.getCell(indexes.codeIdx)));
+        data.setCode(getCellStringValue(getCell(row, indexes.codeIdx)));
         data.setBall(getCellIntValue(row.getCell(indexes.ballIdx)));
         data.setPercentCompleted(getCellIntValue(row.getCell(indexes.percentIdx)));
-        data.setMark(getCellIntValue(row.getCell(indexes.markIdx)));
+        data.setMark(getCellIntValue(getCell(row, indexes.markIdx)));
 
         // Сохраняем результаты заданий как JSON через конвертер
         data.setTaskScores(taskScoresConverter.mapToJson(taskScores));
@@ -404,6 +406,17 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
             // В случае ошибки возвращаем пустую строку
         }
         return "";
+    }
+
+    private Cell getCell(Row row, int index) {
+        if (row == null || index < 0) {
+            return null;
+        }
+        return row.getCell(index);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private Integer getCellIntValue(Cell cell) {
