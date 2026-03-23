@@ -307,8 +307,8 @@ public class GeneralService {
                         log.error("Файл {} не обработан: {}", path.getFileName(), e.getMessage());
                         // Продолжаем с другими файлами
                     } catch (Exception e) {
-                        // Критическая ошибка: логируем со стектрейсом, возможно прерываем
-                        log.error("Критическая ошибка! в файл {} ошибка {}",path, e.getMessage());
+                        totalFailed++;
+                        log.error("Критическая ошибка при обработке файла {}", path, e);
                     }
                 }
             } catch (Exception e) {
@@ -388,22 +388,25 @@ public class GeneralService {
             List<ListStudentData> allStudents = listStudentDataRepository.findBySchool(schoolName);
             log.debug("длина allStudents {}", allStudents.size());
             if (allStudents.isEmpty()) {
-                log.warn("Нет студентов для школы {}", schoolName);
-                return;
+                totalFailed++;
+                log.warn("Нет студентов для школы {}, пропускаем создание отчета", schoolName);
+                continue;
             }
 
             List<StudentResultData> allStudentResults = studentResultDataRepository.findBySchool(schoolName);
             log.debug("длина allStudentResults {}", allStudentResults.size());
             if (allStudentResults.isEmpty()) {
-                log.warn("Нет studentResultDataRepository для школы {}", schoolName);
-                return;
+                totalFailed++;
+                log.warn("Нет данных результатов для школы {}, пропускаем создание отчета", schoolName);
+                continue;
             }
 
             List<StudentResultFGData> allStudentFGResults = studentResultFGDataRepository.findBySchool(schoolName);
             log.debug("длина allStudentFGResults {}", allStudentFGResults.size());
-            if (allStudentResults.isEmpty()) {
-                log.warn("Нет studentResultFGDataRepository для школы {}", schoolName);
-                return;
+            if (allStudentFGResults.isEmpty()) {
+                totalFailed++;
+                log.warn("Нет FG-результатов для школы {}, пропускаем создание отчета", schoolName);
+                continue;
             }
 
             // Создаем Map для быстрого поиска результатов по ключам
@@ -519,7 +522,12 @@ public class GeneralService {
             String filePath = saveTotalReportFile(excelBytes, schoolName);
 
             if (filePath != null) {
+                totalReportsCreated++;
+                successfullyProcessed.add(schoolName);
                 log.info("✅ Общий отчет для школы {} сохранен: {}", schoolName, filePath);
+            } else {
+                totalFailed++;
+                log.error("❌ Не удалось сохранить общий отчет для школы {}", schoolName);
             }
         }
 
