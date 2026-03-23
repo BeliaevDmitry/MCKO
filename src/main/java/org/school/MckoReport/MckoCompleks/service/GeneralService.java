@@ -307,8 +307,8 @@ public class GeneralService {
                         log.error("Файл {} не обработан: {}", path.getFileName(), e.getMessage());
                         // Продолжаем с другими файлами
                     } catch (Exception e) {
-                        // Критическая ошибка: логируем со стектрейсом, возможно прерываем
-                        log.error("Критическая ошибка! в файл {} ошибка {}",path, e.getMessage());
+                        totalFailed++;
+                        log.error("Критическая ошибка при обработке файла {}", path, e);
                     }
                 }
             } catch (Exception e) {
@@ -388,26 +388,30 @@ public class GeneralService {
             List<ListStudentData> allStudents = listStudentDataRepository.findBySchool(schoolName);
             log.debug("длина allStudents {}", allStudents.size());
             if (allStudents.isEmpty()) {
-                log.warn("Нет студентов для школы {}", schoolName);
-                return;
+                totalFailed++;
+                log.warn("Нет студентов для школы {}, пропускаем создание отчета", schoolName);
+                continue;
             }
 
             List<StudentResultData> allStudentResults = studentResultDataRepository.findBySchool(schoolName);
             log.debug("длина allStudentResults {}", allStudentResults.size());
             if (allStudentResults.isEmpty()) {
-                log.warn("Нет studentResultDataRepository для школы {}", schoolName);
-                return;
+                totalFailed++;
+                log.warn("Нет данных результатов для школы {}, пропускаем создание отчета", schoolName);
+                continue;
             }
 
             List<StudentResultFGData> allStudentFGResults = studentResultFGDataRepository.findBySchool(schoolName);
             log.debug("длина allStudentFGResults {}", allStudentFGResults.size());
-            if (allStudentResults.isEmpty()) {
-                log.warn("Нет studentResultFGDataRepository для школы {}", schoolName);
-                return;
+            if (allStudentFGResults.isEmpty()) {
+                totalFailed++;
+                log.warn("Нет FG-результатов для школы {}, пропускаем создание отчета", schoolName);
+                continue;
             }
 
             // Создаем Map для быстрого поиска результатов по ключам
             Map<String, StudentResultData> resultDataMap = allStudentResults.stream()
+                    .filter(result -> hasText(result.getCode()))
                     .collect(Collectors.toMap(
                             result -> buildKey(result.getCode(), result.getClassName(),
                                     result.getSubject(), result.getDate()),
@@ -415,7 +419,17 @@ public class GeneralService {
                             (existing, replacement) -> existing // при дубликатах берем первый
                     ));
 
+            Map<String, StudentResultData> resultDataByStudentNumberMap = allStudentResults.stream()
+                    .filter(result -> result.getStudentNumber() != null)
+                    .collect(Collectors.toMap(
+                            result -> buildStudentNumberKey(result.getStudentNumber(), result.getClassName(),
+                                    result.getSubject(), result.getDate()),
+                            result -> result,
+                            (existing, replacement) -> existing
+                    ));
+
             Map<String, StudentResultFGData> fgDataMap = allStudentFGResults.stream()
+                    .filter(fg -> hasText(fg.getCode()))
                     .collect(Collectors.toMap(
                             fg -> buildKey(fg.getCode(), fg.getClassName(),
                                     fg.getSubject(), fg.getDate()),
@@ -437,11 +451,26 @@ public class GeneralService {
                 combined.setSubject(student.getSubject());
                 combined.setDate(student.getDate());
                 combined.setSchool(student.getSchool());
+                combined.setSchoolYear(student.getSchoolYear());
 
                 // Ищем соответствующие данные в StudentResultData
-                String resultKey = buildKey(student.getCode(), student.getClassName(),
-                        student.getSubject(), student.getDate());
-                StudentResultData resultData = resultDataMap.get(resultKey);
+                StudentResultData resultData = null;
+                if (hasText(student.getCode())) {
+                    String resultKey = buildKey(student.getCode(), student.getClassName(),
+                            student.getSubject(), student.getDate());
+                    resultData = resultDataMap.get(resultKey);
+                }
+                if (resultData == null) {
+                    resultData = resultDataByStudentNumberMap.get(
+                            buildStudentNumberKey(student.getStudentNumber(), student.getClassName(),
+                                    student.getSubject(), student.getDate())
+                    );
+                }
+
+                String schoolYear = student.getSchoolYear();
+                if (resultData != null && !hasText(schoolYear)) {
+                    schoolYear = resultData.getSchoolYear();
+                }
 
                 if (resultData != null) {
                     // Копируем данные из StudentResultData
@@ -464,7 +493,17 @@ public class GeneralService {
                 }
 
                 // Ищем соответствующие данные в StudentResultFGData
-                StudentResultFGData fgData = fgDataMap.get(resultKey);
+                StudentResultFGData fgData = null;
+                if (hasText(student.getCode())) {
+                    String fgKey = buildKey(student.getCode(), student.getClassName(),
+                            student.getSubject(), student.getDate());
+                    fgData = fgDataMap.get(fgKey);
+                }
+
+                if (fgData != null && !hasText(schoolYear)) {
+                    schoolYear = fgData.getSchoolYear();
+                }
+                combined.setSchoolYear(schoolYear);
 
                 if (fgData != null) {
                     // Копируем данные из StudentResultFGData
@@ -494,7 +533,12 @@ public class GeneralService {
             String filePath = saveTotalReportFile(excelBytes, schoolName);
 
             if (filePath != null) {
+                totalReportsCreated++;
+                successfullyProcessed.add(schoolName);
                 log.info("✅ Общий отчет для школы {} сохранен: {}", schoolName, filePath);
+            } else {
+                totalFailed++;
+                log.error("❌ Не удалось сохранить общий отчет для школы {}", schoolName);
             }
         }
 
@@ -521,6 +565,19 @@ public class GeneralService {
                 subject != null ? subject : "",
                 date != null ? date : ""
         );
+    }
+
+    private String buildStudentNumberKey(Integer studentNumber, String className, String subject, String date) {
+        return String.format("%s|%s|%s|%s",
+                studentNumber != null ? studentNumber : "",
+                className != null ? className : "",
+                subject != null ? subject : "",
+                date != null ? date : ""
+        );
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     /**
