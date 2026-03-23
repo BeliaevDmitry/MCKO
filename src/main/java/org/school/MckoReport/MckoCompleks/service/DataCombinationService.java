@@ -142,6 +142,15 @@ public class DataCombinationService {
         return value != null && !value.trim().isEmpty();
     }
 
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private CombinedResultData createCombinedData(
             ListStudentData student,
             Map<String, StudentResultData> resultDataMap,
@@ -164,6 +173,12 @@ public class DataCombinationService {
             fgData = fgDataMap.get(fgKey);
         }
 
+        String schoolYear = firstNonBlank(
+                student.getSchoolYear(),
+                resultData != null ? resultData.getSchoolYear() : null,
+                fgData != null ? fgData.getSchoolYear() : null
+        );
+
         return CombinedResultData.builder()
                 .nameFIO(student.getNameFIO())
                 .code(student.getCode())
@@ -171,6 +186,7 @@ public class DataCombinationService {
                 .subject(student.getSubject())
                 .date(student.getDate())
                 .school(student.getSchool())
+                .schoolYear(schoolYear)
 
                 // Данные из StudentResultData
                 .parallel(resultData != null ? resultData.getParallel() : null)
@@ -221,6 +237,14 @@ public class DataCombinationService {
                 .distinct()
                 .collect(Collectors.toList());
         options.put("dates", dates);
+
+        List<String> schoolYears = listStudentDataRepository.findAll().stream()
+                .map(ListStudentData::getSchoolYear)
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+        options.put("schoolYears", schoolYears);
 
         // Классы
         List<String> classes = listStudentDataRepository.findAll().stream()

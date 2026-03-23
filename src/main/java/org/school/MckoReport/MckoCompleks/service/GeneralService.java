@@ -451,6 +451,7 @@ public class GeneralService {
                 combined.setSubject(student.getSubject());
                 combined.setDate(student.getDate());
                 combined.setSchool(student.getSchool());
+                combined.setSchoolYear(student.getSchoolYear());
 
                 // Ищем соответствующие данные в StudentResultData
                 StudentResultData resultData = null;
@@ -464,6 +465,11 @@ public class GeneralService {
                             buildStudentNumberKey(student.getStudentNumber(), student.getClassName(),
                                     student.getSubject(), student.getDate())
                     );
+                }
+
+                String schoolYear = student.getSchoolYear();
+                if (resultData != null && !hasText(schoolYear)) {
+                    schoolYear = resultData.getSchoolYear();
                 }
 
                 if (resultData != null) {
@@ -493,6 +499,11 @@ public class GeneralService {
                             student.getSubject(), student.getDate());
                     fgData = fgDataMap.get(fgKey);
                 }
+
+                if (fgData != null && !hasText(schoolYear)) {
+                    schoolYear = fgData.getSchoolYear();
+                }
+                combined.setSchoolYear(schoolYear);
 
                 if (fgData != null) {
                     // Копируем данные из StudentResultFGData

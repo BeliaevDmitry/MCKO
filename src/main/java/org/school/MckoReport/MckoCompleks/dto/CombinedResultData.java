@@ -17,6 +17,7 @@ public class CombinedResultData {
     private String subject;
     private String date;
     private String school;
+    private String schoolYear;
 
     // Из StudentResultData
     private Integer parallel;
