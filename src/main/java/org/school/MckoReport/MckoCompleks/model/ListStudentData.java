@@ -36,5 +36,5 @@ public class ListStudentData {
     String school;
 
     @Column(name = "student_number")
-    private int studentNumber;
+    private Integer studentNumber;
 }
