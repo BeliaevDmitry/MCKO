@@ -3,9 +3,9 @@ package org.school.MckoReport.MckoCompleks.service.impl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
-import org.school.MckoReport.MckoCompleks.model.StudentResultData;
 import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
 import org.school.MckoReport.MckoCompleks.service.ResultFGProcessorService;
+import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -17,13 +17,10 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.apache.poi.ooxml.util.POIXMLUnits.parsePercent;
-
-
 @Slf4j
 @Service
 public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
-    private static boolean DEBUG = true;
+
 
 
     @Override
@@ -34,42 +31,28 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
 
-            if (DEBUG) {
-                System.out.println("  Первые 500 символов текста PDF:");
-                System.out.println(text.substring(0, Math.min(500, text.length())));
-                System.out.println("  ---");
-            }
+
 
             // Извлекаем общую информацию из заголовка
             Map<String, String> headerInfo = extractHeaderInfo(text);
             String date = headerInfo.get("date");
             String subject = headerInfo.get("subject");
-            String className = headerInfo.get("className");
-
-            if (DEBUG) {
-                System.out.println("  Дата: " + date);
-                System.out.println("  Предмет: " + subject);
-                System.out.println("  Класс: " + className);
-            }
+            String className = normalizeClassName(headerInfo.get("className"));
+            log.debug("после нормализации  className  {}", className);
+            String school = headerInfo.get("school");
+            log.debug("// Извлекаем общую информацию из заголовка ФГ String date {}" +
+                    "адрес файла {}", date, patch);
+            date = DateNormalizerUtil.normalizeDateWithFileFallback(date,patch.toString());
+            log.debug("после нормализации date {}", date);
 
             // Извлекаем данные студентов
-            List<StudentResultFGData> studentResults = extractStudentResults(text, className, subject, date);
+            List<StudentResultFGData> studentResults = extractStudentResults(text,
+                    className, subject, date, school);
 
-            System.out.println("  Найдено записей студентов: " + studentResults.size());
+            log.info("  Найдено записей студентов: " + studentResults.size());
             allResults.addAll(studentResults);
 
-            if (DEBUG && studentResults.size() > 0) {
-                System.out.println("  Первые 3 записи:");
-                for (int i = 0; i < Math.min(3, studentResults.size()); i++) {
-                    StudentResultFGData s = studentResults.get(i);
-                    System.out.println("    Код: " + s.getCode() +
-                            " | Всего %: " + s.getOverallPercent() +
-                            " | Уровень: " + s.getMasteryLevel() +
-                            " | Раздел1: " + s.getSection1Percent() +
-                            " | Раздел2: " + s.getSection2Percent() +
-                            " | Раздел3: " + s.getSection3Percent());
-                }
-            }
+
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -81,6 +64,7 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
         info.put("date", "");
         info.put("subject", "");
         info.put("className", "");
+        info.put("school", "");
 
         String[] lines = text.split("\n");
 
@@ -113,6 +97,13 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
                 if (classMatcher.find()) {
                     info.put("className", classMatcher.group(1).trim());
                 }
+
+                // Ищем школу
+                Pattern schoolPattern = Pattern.compile("Школа:\\s*(.*?)(?=\\s*$|\\s*[Кк]ласс:|\\s*[Пп]редмет:|$)", Pattern.CASE_INSENSITIVE);
+                Matcher schoolMatcher = schoolPattern.matcher(line);
+                if (schoolMatcher.find()) {
+                    info.put("school", schoolMatcher.group(1).trim());
+                }
             }
         }
 
@@ -131,10 +122,21 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
         return info;
     }
 
+    private String normalizeClassName(String className) {
+        if (className == null || className.isEmpty()) {
+            return className;
+        }
+
+        // Регулярное выражение для поиска позиции между цифрами и буквами
+        // или между буквами и цифрами (для двустороннего преобразования)
+        return className.replaceAll("(?<=\\d)(?=\\p{L})|(?<=\\p{L})(?=\\d)", "-");
+    }
+
     private static List<StudentResultFGData> extractStudentResults(String text,
                                                                    String className,
                                                                    String subject,
-                                                                   String date) {
+                                                                   String date,
+                                                                   String school) {
         List<StudentResultFGData> results = new ArrayList<>();
         String[] lines = text.split("\n");
 
@@ -145,7 +147,8 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
 
             // Находим начало таблицы с результатами
             if (line.matches("\\d+\\s+\\d{4}-\\d{4}\\s+\\d+.*") ||
-                    (line.matches(".*\\d{4}-\\d{4}.*") && (line.contains("+") || line.contains("-") || line.contains("N")))) {
+                    (line.matches(".*\\d{4}-\\d{4}.*") && (line.contains("+")
+                            || line.contains("-") || line.contains("N")))) {
                 inResultsSection = true;
             }
 
@@ -156,7 +159,7 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
 
             if (inResultsSection && !line.isEmpty()) {
                 // Пытаемся распарсить строку с данными студента
-                StudentResultFGData result = parseStudentResultLine(line, className, subject, date);
+                StudentResultFGData result = parseStudentResultLine(line, className, subject, date, school);
                 if (result != null) {
                     results.add(result);
                 }
@@ -164,7 +167,7 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
 
             // Альтернативный поиск: строка начинается с номера и содержит код
             if (!inResultsSection && line.matches("^\\d+\\s+\\d{4}-\\d{4}.*")) {
-                StudentResultFGData result = parseStudentResultLine(line, className, subject, date);
+                StudentResultFGData result = parseStudentResultLine(line, className, subject, date, school);
                 if (result != null) {
                     results.add(result);
                 }
@@ -182,7 +185,8 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
     private static StudentResultFGData parseStudentResultLine(String line,
                                                               String className,
                                                               String subject,
-                                                              String date) {
+                                                              String date,
+                                                              String school) {
         try {
             // Удаляем лишние пробелы
             line = line.replaceAll("\\s+", " ").trim();
@@ -290,26 +294,20 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
             result.setClassName(className);
             result.setSubject(subject);
             result.setDate(date);
+            result.setSchool(school);
             result.setOverallPercent(overallPercent.isEmpty() ? "0" : overallPercent);
             result.setMasteryLevel(masteryLevel.isEmpty() ? "Не определен" : masteryLevel);
             result.setSection1Percent(section1Percent.isEmpty() ? "0" : section1Percent);
             result.setSection2Percent(section2Percent.isEmpty() ? "0" : section2Percent);
             result.setSection3Percent(section3Percent.isEmpty() ? "0" : section3Percent);
 
-            if (DEBUG) {
-                System.out.println("  Распарсено: Код=" + code +
-                        ", Общий %=" + overallPercent +
-                        ", Уровень=" + masteryLevel +
-                        ", Разделы=" + section1Percent + "/" + section2Percent + "/" + section3Percent);
-            }
 
             return result;
 
         } catch (Exception e) {
-            if (DEBUG) {
+
                 System.err.println("Ошибка парсинга строки: " + line);
-                e.printStackTrace();
-            }
+
             return null;
         }
     }

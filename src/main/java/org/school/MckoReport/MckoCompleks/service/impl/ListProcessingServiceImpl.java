@@ -7,6 +7,7 @@ import org.school.MckoReport.MckoCompleks.expextion.ProcessingException;
 import org.school.MckoReport.MckoCompleks.model.ArchiveEntry;
 import org.school.MckoReport.MckoCompleks.model.ListStudentData;
 import org.school.MckoReport.MckoCompleks.service.ListProcessingService;
+import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
 import org.springframework.stereotype.Service;
 
 
@@ -227,6 +228,11 @@ public class ListProcessingServiceImpl implements ListProcessingService {
 
             // Извлекаем метаданные из имени файла
             String date = extractDateFromFileName(fileName);
+            log.debug("Извлекаем метаданные из имени файла String date {}" +
+                    "fileName {}", date, fileName);
+            date =DateNormalizerUtil.normalizeDateWithFileFallback(date,fileName);
+            log.debug("Извлекаем метаданные из имени файла String date " +
+                    "после DateNormalizerUtil {}", date);
 
 
             // Извлекаем все метаданные
@@ -242,6 +248,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                 ListStudentData student = ListStudentData.builder()
                         .nameFIO(rawStudent.getNameFIO())
                         .code(rawStudent.getCode())
+                        .studentNumber(rawStudent.getStudentNumber())
                         .className(className)
                         .subject(subject)
                         .date(date)
@@ -368,12 +375,14 @@ public class ListProcessingServiceImpl implements ListProcessingService {
         String[] lines = text.split("\n");
 
         boolean inStudentSection = false;
+        int studentCounter = 0; // счётчик студентов
 
         for (String s : lines) {
             String line = s.trim();
 
             if (line.contains("ФИО обучающегося") ||
                     line.contains("ФИО участника") ||
+                    line.contains("ФИО учащегося") ||
                     (line.contains("ФИО") && line.contains("Код"))) {
                 inStudentSection = true;
                 continue;
@@ -385,6 +394,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                         line.equals("участника") ||
                         line.equals("обучающегося") ||
                         line.equals("Код участника") ||
+                        line.equals("Номер учащегося") ||
                         line.contains("ФИО") && line.contains("Код")) {
                     continue;
                 }
@@ -404,10 +414,12 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                             name.contains(" ") &&
                             name.matches(".*[А-ЯЁ][а-яё]+.*[А-ЯЁ][а-яё]+.*")) {
 
+                        studentCounter++;
                         ListStudentData student = new ListStudentData();
                         student.setNameFIO(name);
                         student.setCode(code);
                         students.add(student);
+                        student.setStudentNumber(studentCounter);
                     }
                 }
             }

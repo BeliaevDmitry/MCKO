@@ -16,40 +16,43 @@ public class StudentResultData {
     private Long id;
 
     @Column(name = "school", nullable = false)
-    private String school;              // название школы
+    private String school;
 
     @Column(name = "parallel")
-    private Integer parallel;           // параллель
+    private Integer parallel;
 
     @Column(name = "letter", length = 2)
-    private String letter;              // литера класса
+    private String letter;
 
     @Column(name = "subject")
-    private String subject;             // предмет
+    private String subject;
 
     @Column(name = "work_date")
-    private String date;                // дата работы
+    private String date;
 
     @Column(name = "variant")
-    private Integer variant;            // вариант работы
+    private Integer variant;
 
     @Column(name = "diagnostic_code", length = 20)
-    private String code;                // Код диагн.
+    private String code;
 
-    @Column(name = "task_scores", length = 1000)
-    private String taskScores;          // результаты в формате 1-1; 2-1; 3-2;...
+    @Column(name = "task_scores", length = 4000)
+    private String taskScores; // Просто храним JSON строку
 
     @Column(name = "total_score")
-    private Integer ball;               // баллов за работу
+    private Integer ball;
 
     @Column(name = "percent_completed")
-    private Integer percentCompleted;   // % вып.
+    private Integer percentCompleted;
 
     @Column(name = "mark")
-    private Integer mark;               // отметка
+    private Integer mark;
 
     @Column(name = "class_name", length = 10)
-    private String className;           // вычисляемое поле: "5-А"
+    private String className;
+
+    @Column(name = "student_number")
+    private Integer studentNumber;
 
     /**
      * Вычисляет className перед сохранением

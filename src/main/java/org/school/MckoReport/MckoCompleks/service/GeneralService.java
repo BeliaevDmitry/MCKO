@@ -3,22 +3,24 @@ package org.school.MckoReport.MckoCompleks.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.MckoReport.MckoCompleks.Config.AppConfig;
+import org.school.MckoReport.MckoCompleks.dto.CombinedResultData;
 import org.school.MckoReport.MckoCompleks.expextion.ProcessingException;
-import org.school.MckoReport.MckoCompleks.model.ArchiveEntry;
-import org.school.MckoReport.MckoCompleks.model.FileCategory;
-import org.school.MckoReport.MckoCompleks.model.ListStudentData;
-import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
+import org.school.MckoReport.MckoCompleks.model.*;
 import org.school.MckoReport.MckoCompleks.repository.ListStudentDataRepository;
 import org.school.MckoReport.MckoCompleks.repository.StudentResultDataRepository;
 import org.school.MckoReport.MckoCompleks.repository.StudentResultFGDataRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +34,9 @@ public class GeneralService {
     private final StudentResultDataRepository studentResultDataRepository;
     private final StudentResultFGDataRepository studentResultFGDataRepository;
     private final ResultFGProcessorService resultFGProcessorService;
+    private final ResultProcessorService resultProcessorService;
+    private final DataCombinationService dataCombinationService;
+    private final ExcelExportService excelExportService;
 
     public void processListCod() {
         log.info("Начало обработки для {} школ", AppConfig.SCHOOLS.size());
@@ -163,7 +168,7 @@ public class GeneralService {
                 Map<String, List<Path>> dispatch =
                         findFilesService.dispatchProcessing(filesList);
 
-                List<Path> resultFiles = dispatch.getOrDefault(FileCategory.FG_PDF.name(),
+                List<Path> resultFiles = dispatch.getOrDefault(FileCategory.FG_PDF_RESULTS.name(),
                         Collections.emptyList());
 
                 log.info("Файлов ФГ: {}", resultFiles.size());
@@ -210,17 +215,17 @@ public class GeneralService {
             }
         }
 
-        // 5. Перемещаем  если включено
+        // 5. Перемещаем если включено
         if (AppConfig.ENABLE_MOVE && !successfullyProcessed.isEmpty()) {
             try {
                 boolean moved = findFilesService.moveToSubjectFolder(successfullyProcessed);
                 if (moved) {
-                    log.info("✅ Успешно перемещено {} архивов", successfullyProcessed.size());
+                    log.info("✅ Успешно перемещено {} файлов ФГ", successfullyProcessed.size());
                 } else {
-                    log.warn("⚠ Не все архивы удалось переместить");
+                    log.warn("⚠ Не все файлы ФГ удалось переместить");
                 }
             } catch (Exception e) {
-                log.error("❌ Ошибка при перемещении файлов: {}", e.getMessage());
+                log.error("❌ Ошибка при перемещении файлов ФГ: {}", e.getMessage());
                 // НЕ откатываем транзакцию БД
             }
         }
@@ -230,7 +235,109 @@ public class GeneralService {
         log.info("  🏫 Обработано школ: {}", AppConfig.SCHOOLS.size());
         log.info("  ✅ Успешных файлов: {}", totalProcessed);
         log.info("  ❌ Ошибок: {}", totalFailed);
-        log.info("  📦 Перемещено архивов: {}", successfullyProcessed.size());
+        log.info("  📦 Перемещено файлов ФГ: {}", successfullyProcessed.size());
+        log.info("=".repeat(50));
+    }
+
+    public void processResult() {
+        log.info("Начало обработки для {} школ", AppConfig.SCHOOLS.size());
+
+        int totalProcessed = 0;
+        int totalFailed = 0;
+        List<Path> successfullyProcessed = new ArrayList<>();
+
+        for (String schoolName : AppConfig.SCHOOLS) {
+            try {
+                // 1. Формируем путь для школы
+                String folderPath = AppConfig.FOLDER_PATCH.replace("{школа}", schoolName);
+                log.info("Обработка школы: {} (путь: {})", schoolName, folderPath);
+
+                // 2. Получаем список файлов
+                List<Path> filesList = findFilesService.findRegularFiles(
+                        Path.of(folderPath)
+                );
+
+                log.info("Найдено  записей: {}", filesList.size());
+
+                if (filesList.isEmpty()) {
+                    log.warn("Для школы {} не найдено файлов", schoolName);
+                    continue;
+                }
+
+                // 3. Классифицируем файлы
+                Map<String, List<Path>> dispatch =
+                        findFilesService.dispatchProcessing(filesList);
+
+                List<Path> resultFiles = dispatch.getOrDefault(FileCategory.EXCEL_RESULTS.name(),
+                        Collections.emptyList());
+
+                log.info("Файлов с результатами: {}", resultFiles.size());
+
+                // 4. Обрабатываем каждый файл
+                for (Path path : resultFiles) {
+                    try {
+                        List<StudentResultData> result =
+                                resultProcessorService.extractStudentsResult(path);
+
+                        if (!result.isEmpty()) {
+                            // Сохраняем пакетами если нужно
+                            if (AppConfig.BATCH_SIZE > 0 && result.size() > AppConfig.BATCH_SIZE) {
+                                saveInBatchesResult(result, AppConfig.BATCH_SIZE);
+                            } else {
+                                studentResultDataRepository.saveAll(result);
+                            }
+
+                            totalProcessed += result.size();
+
+                            // Добавляем в список успешно обработанных
+
+                            if (!successfullyProcessed.contains(path)) {
+                                successfullyProcessed.add(path);
+                            }
+
+                            log.info("Файл {} обработан успешно, сохранено {} студентов",
+                                    path.getFileName(), result.size());
+                        } else {
+                            log.warn("Файл {} не содержит данных о студентах",
+                                    path.getFileName());
+                        }
+
+                    } catch (ProcessingException e) {
+                        totalFailed++;
+                        log.error("Файл {} не обработан: {}", path.getFileName(), e.getMessage());
+                        // Продолжаем с другими файлами
+                    } catch (Exception e) {
+                        // Критическая ошибка: логируем со стектрейсом, возможно прерываем
+                        log.error("Критическая ошибка! в файл {} ошибка {}",path, e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Ошибка обработки для школы {}: {}", schoolName, e.getMessage(), e);
+                throw new RuntimeException("Ошибка обработки школы " + schoolName, e);
+            }
+        }
+
+        // 5. Перемещаем если включено
+        if (AppConfig.ENABLE_MOVE && !successfullyProcessed.isEmpty()) {
+            try {
+                boolean moved = findFilesService.moveToSubjectFolder(successfullyProcessed);
+                if (moved) {
+                    log.info("✅ Успешно перемещено {} результатов XLXS", successfullyProcessed.size());
+                } else {
+                    log.warn("⚠ Не все результаты XLXS удалось переместить");
+                }
+            } catch (Exception e) {
+                log.error("❌ Ошибка при перемещении результатов XLXS: {}", e.getMessage());
+                // НЕ откатываем транзакцию БД
+            }
+        }
+
+        log.info("=".repeat(50));
+        log.info("📊 ИТОГИ ОБРАБОТКИ:");
+        log.info("  🏫 Обработано школ: {}", AppConfig.SCHOOLS.size());
+        log.info("  ✅ Успешных файлов: {}", totalProcessed);
+        log.info("  ❌ Ошибок: {}", totalFailed);
+        log.info("  📦 Перемещено результатов XLXS: {}", successfullyProcessed.size());
         log.info("=".repeat(50));
     }
 
@@ -250,5 +357,207 @@ public class GeneralService {
             studentResultFGDataRepository.saveAll(batch);
             log.debug("Сохранен пакет {}-{} из {}", i + 1, end, resultFGData.size());
         }
+    }
+
+    private void saveInBatchesResult(List<StudentResultData> resultData, int batchSize) {
+        for (int i = 0; i < resultData.size(); i += batchSize) {
+            int end = Math.min(resultData.size(), i + batchSize);
+            List<StudentResultData> batch = resultData.subList(i, end);
+            studentResultDataRepository.saveAll(batch);
+            log.debug("Сохранен пакет {}-{} из {}", i + 1, end, resultData.size());
+        }
+    }
+
+    /**
+     * Создать объединенные отчеты Excel для каждой школы
+     * (Аналог processResult() для отчетов)
+     */
+    @Transactional
+    public void createSchoolReports() throws IOException {
+        log.info("Начало создания отчетов для {} школ", AppConfig.SCHOOLS.size());
+
+        int totalReportsCreated = 0;
+        int totalFailed = 0;
+        List<String> successfullyProcessed = new ArrayList<>();
+
+        for (String schoolName : AppConfig.SCHOOLS_MCKO) {
+            log.info("Создание общего отчета для школы: {}", schoolName);
+
+
+            // Получаем всех студентов школы
+            List<ListStudentData> allStudents = listStudentDataRepository.findBySchool(schoolName);
+            log.debug("длина allStudents {}", allStudents.size());
+            if (allStudents.isEmpty()) {
+                log.warn("Нет студентов для школы {}", schoolName);
+                return;
+            }
+
+            List<StudentResultData> allStudentResults = studentResultDataRepository.findBySchool(schoolName);
+            log.debug("длина allStudentResults {}", allStudentResults.size());
+            if (allStudentResults.isEmpty()) {
+                log.warn("Нет studentResultDataRepository для школы {}", schoolName);
+                return;
+            }
+
+            List<StudentResultFGData> allStudentFGResults = studentResultFGDataRepository.findBySchool(schoolName);
+            log.debug("длина allStudentFGResults {}", allStudentFGResults.size());
+            if (allStudentResults.isEmpty()) {
+                log.warn("Нет studentResultFGDataRepository для школы {}", schoolName);
+                return;
+            }
+
+            // Создаем Map для быстрого поиска результатов по ключам
+            Map<String, StudentResultData> resultDataMap = allStudentResults.stream()
+                    .collect(Collectors.toMap(
+                            result -> buildKey(result.getCode(), result.getClassName(),
+                                    result.getSubject(), result.getDate()),
+                            result -> result,
+                            (existing, replacement) -> existing // при дубликатах берем первый
+                    ));
+
+            Map<String, StudentResultFGData> fgDataMap = allStudentFGResults.stream()
+                    .collect(Collectors.toMap(
+                            fg -> buildKey(fg.getCode(), fg.getClassName(),
+                                    fg.getSubject(), fg.getDate()),
+                            fg -> fg,
+                            (existing, replacement) -> existing // при дубликатах берем первый
+                    ));
+
+            // Собираем объединенные данные
+            List<CombinedResultData> combinedResults = new ArrayList<>();
+            log.debug("длина combinedResults {}", combinedResults.size());
+
+            for (ListStudentData student : allStudents) {
+                CombinedResultData combined = new CombinedResultData();
+
+                // Копируем данные из ListStudentData
+                combined.setNameFIO(student.getNameFIO());
+                combined.setCode(student.getCode());
+                combined.setClassName(student.getClassName());
+                combined.setSubject(student.getSubject());
+                combined.setDate(student.getDate());
+                combined.setSchool(student.getSchool());
+
+                // Ищем соответствующие данные в StudentResultData
+                String resultKey = buildKey(student.getCode(), student.getClassName(),
+                        student.getSubject(), student.getDate());
+                StudentResultData resultData = resultDataMap.get(resultKey);
+
+                if (resultData != null) {
+                    // Копируем данные из StudentResultData
+                    combined.setParallel(resultData.getParallel());
+                    combined.setLetter(resultData.getLetter());
+                    combined.setVariant(resultData.getVariant());
+                    combined.setTaskScores(resultData.getTaskScores());
+                    combined.setBall(resultData.getBall());
+                    combined.setPercentCompleted(resultData.getPercentCompleted());
+                    combined.setMark(resultData.getMark());
+                    combined.setStudentNumber(resultData.getStudentNumber());
+                    combined.setHasResultData(true);
+
+                    // Обновляем className если он есть в resultData (более точный)
+                    if (resultData.getClassName() != null && !resultData.getClassName().isEmpty()) {
+                        combined.setClassName(resultData.getClassName());
+                    }
+                } else {
+                    combined.setHasResultData(false);
+                }
+
+                // Ищем соответствующие данные в StudentResultFGData
+                StudentResultFGData fgData = fgDataMap.get(resultKey);
+
+                if (fgData != null) {
+                    // Копируем данные из StudentResultFGData
+                    combined.setOverallPercent(fgData.getOverallPercent());
+                    combined.setMasteryLevel(fgData.getMasteryLevel());
+                    combined.setSection1Percent(fgData.getSection1Percent());
+                    combined.setSection2Percent(fgData.getSection2Percent());
+                    combined.setSection3Percent(fgData.getSection3Percent());
+                    combined.setHasFGData(true);
+                } else {
+                    combined.setHasFGData(false);
+                }
+
+                combinedResults.add(combined);
+            }
+
+            log.debug("длина combinedResults перед передачей в генератор эксель {}", combinedResults.size());
+            // Создаем Excel
+            byte[] excelBytes = excelExportService.exportToExcel(
+                    combinedResults,
+                    allStudents,
+                    allStudentResults,
+                    allStudentFGResults
+            );
+
+            // Сохраняем
+            String filePath = saveTotalReportFile(excelBytes, schoolName);
+
+            if (filePath != null) {
+                log.info("✅ Общий отчет для школы {} сохранен: {}", schoolName, filePath);
+            }
+        }
+
+        // 5. Выводим итоги
+        log.info("=".repeat(60));
+        log.info("📋 ИТОГИ СОЗДАНИЯ ОТЧЕТОВ:");
+        log.info("  🏫 Всего школ в конфиге: {}", AppConfig.SCHOOLS.size());
+        log.info("  ✅ Успешно обработано школ: {}", successfullyProcessed.size());
+        log.info("  ❌ Школ с ошибками: {}", totalFailed);
+        log.info("  📄 Создано отчетов: {}", totalReportsCreated);
+
+        if (!successfullyProcessed.isEmpty()) {
+            log.info("  🎯 Успешно обработанные школы: {}", successfullyProcessed);
+        }
+
+        log.info("=".repeat(60));
+    }
+
+    // Вспомогательный метод для создания ключа
+    private String buildKey(String code, String className, String subject, String date) {
+        return String.format("%s|%s|%s|%s",
+                code != null ? code : "",
+                className != null ? className : "",
+                subject != null ? subject : "",
+                date != null ? date : ""
+        );
+    }
+
+    /**
+     * Сохранить общий отчет школы
+     */
+    private String saveTotalReportFile(byte[] excelData, String schoolName) {
+        try {
+            String reportsFolder = AppConfig.REPORTS_FOLDER.replace("{школа}", schoolName);
+            Path folderPath = Paths.get(reportsFolder);
+
+            if (!Files.exists(folderPath)) {
+                Files.createDirectories(folderPath);
+            }
+
+            String cleanSchoolName = cleanFileName(schoolName);
+            String fileName = String.format("ОБЩИЙ_отчет_%s.xlsx", cleanSchoolName);
+            Path filePath = folderPath.resolve(fileName);
+
+            try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
+                fos.write(excelData);
+            }
+
+            return filePath.toString();
+
+        } catch (Exception e) {
+            log.error("Ошибка при сохранении общего отчета: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Очистка имени файла
+     */
+    private String cleanFileName(String text) {
+        if (text == null) return "";
+        return text.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_")
+                .toLowerCase()
+                .replaceAll("_+", "_");
     }
 }

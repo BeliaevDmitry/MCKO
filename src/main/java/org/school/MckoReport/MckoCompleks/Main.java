@@ -23,9 +23,11 @@ public class Main implements CommandLineRunner {
     @Override
     public void run(String... args) {
         try {
-            log.info("Начинаем обработку школ: {}", AppConfig.SCHOOLS);
-           // generalService.processListCod();
+            log.info("Запускаем программу: {}", AppConfig.SCHOOLS);
+            generalService.processListCod();
             generalService.processFGResult();
+            generalService.processResult();
+            generalService.createSchoolReports();
             log.info("✅ Обработка успешно завершена!");
         } catch (Exception e) {
             log.error("❌ Критическая ошибка при обработке: {}", e.getMessage(), e);

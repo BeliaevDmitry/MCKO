@@ -38,9 +38,9 @@ logging:
     org.springframework.jdbc.core.JdbcTemplate: WARN
 
     # Ваше приложение
-    org.school.MckoReport: DEBUG
-    org.school.MckoReport.MckoCompleks: DEBUG
-    org.school.MckoReport.MckoCompleks.service: DEBUG
+    org.school.MckoReport: WARN
+    org.school.MckoReport.MckoCompleks: WARN
+    org.school.MckoReport.MckoCompleks.service.ExcelExportService: WARN
 
     # База данных и пул соединений
     com.zaxxer.hikari: WARN
