@@ -408,6 +408,7 @@ public class GeneralService {
 
             // Создаем Map для быстрого поиска результатов по ключам
             Map<String, StudentResultData> resultDataMap = allStudentResults.stream()
+                    .filter(result -> hasText(result.getCode()))
                     .collect(Collectors.toMap(
                             result -> buildKey(result.getCode(), result.getClassName(),
                                     result.getSubject(), result.getDate()),
@@ -415,7 +416,17 @@ public class GeneralService {
                             (existing, replacement) -> existing // при дубликатах берем первый
                     ));
 
+            Map<String, StudentResultData> resultDataByStudentNumberMap = allStudentResults.stream()
+                    .filter(result -> result.getStudentNumber() != null)
+                    .collect(Collectors.toMap(
+                            result -> buildStudentNumberKey(result.getStudentNumber(), result.getClassName(),
+                                    result.getSubject(), result.getDate()),
+                            result -> result,
+                            (existing, replacement) -> existing
+                    ));
+
             Map<String, StudentResultFGData> fgDataMap = allStudentFGResults.stream()
+                    .filter(fg -> hasText(fg.getCode()))
                     .collect(Collectors.toMap(
                             fg -> buildKey(fg.getCode(), fg.getClassName(),
                                     fg.getSubject(), fg.getDate()),
@@ -439,9 +450,18 @@ public class GeneralService {
                 combined.setSchool(student.getSchool());
 
                 // Ищем соответствующие данные в StudentResultData
-                String resultKey = buildKey(student.getCode(), student.getClassName(),
-                        student.getSubject(), student.getDate());
-                StudentResultData resultData = resultDataMap.get(resultKey);
+                StudentResultData resultData = null;
+                if (hasText(student.getCode())) {
+                    String resultKey = buildKey(student.getCode(), student.getClassName(),
+                            student.getSubject(), student.getDate());
+                    resultData = resultDataMap.get(resultKey);
+                }
+                if (resultData == null) {
+                    resultData = resultDataByStudentNumberMap.get(
+                            buildStudentNumberKey(student.getStudentNumber(), student.getClassName(),
+                                    student.getSubject(), student.getDate())
+                    );
+                }
 
                 if (resultData != null) {
                     // Копируем данные из StudentResultData
@@ -464,7 +484,12 @@ public class GeneralService {
                 }
 
                 // Ищем соответствующие данные в StudentResultFGData
-                StudentResultFGData fgData = fgDataMap.get(resultKey);
+                StudentResultFGData fgData = null;
+                if (hasText(student.getCode())) {
+                    String fgKey = buildKey(student.getCode(), student.getClassName(),
+                            student.getSubject(), student.getDate());
+                    fgData = fgDataMap.get(fgKey);
+                }
 
                 if (fgData != null) {
                     // Копируем данные из StudentResultFGData
@@ -521,6 +546,19 @@ public class GeneralService {
                 subject != null ? subject : "",
                 date != null ? date : ""
         );
+    }
+
+    private String buildStudentNumberKey(Integer studentNumber, String className, String subject, String date) {
+        return String.format("%s|%s|%s|%s",
+                studentNumber != null ? studentNumber : "",
+                className != null ? className : "",
+                subject != null ? subject : "",
+                date != null ? date : ""
+        );
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     /**
