@@ -1,8 +1,8 @@
-package org.school.MckoReport.MckoCompleks.service.impl;
+package org.school.MckoReport.MckoCompleks.service.file;
 
 import lombok.extern.slf4j.Slf4j;
 import org.school.MckoReport.MckoCompleks.model.FileCategory;
-import org.school.MckoReport.MckoCompleks.service.FindFilesService;
+import org.school.MckoReport.MckoCompleks.service.file.FindFilesService;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -313,7 +313,7 @@ public class FindFilesServiceImpl implements FindFilesService {
         for (Path sourcePath : listPatchSuccessful) {
             try {
                 // Извлекаем информацию для формирования пути назначения
-                String subject = extractSubjectFromPath(sourcePath);
+                String subject = isZipFile(sourcePath) ? "коды ФИО" : extractSubjectFromPath(sourcePath);
                 String school = extractSchoolFromPath(sourcePath);
 
                 if (subject == null || school == null) {
@@ -414,43 +414,42 @@ public class FindFilesServiceImpl implements FindFilesService {
      * Извлекает название предмета из пути файла
      */
     private String extractSubjectFromPath(Path path) {
-        String fileName = path.getFileName().toString().toLowerCase();
+        String normalizedPath = normalizePathForMatching(path);
 
-        // Пытаемся определить предмет по имени файла
-        if (fileName.contains("фг") || fileName.contains("функциональн")) {
-            return "Функциональная грамотность";
-        } else if (fileName.contains("мат")) {
-            return "Математика";
-        } else if (fileName.contains("русск") || fileName.contains("ря")) {
-            return "Русский язык";
-        } else if (fileName.contains("англ")) {
-            return "Английский язык";
-        } else if (fileName.contains("физик")) {
-            return "Физика";
-        } else if (fileName.contains("хими")) {
-            return "Химия";
-        } else if (fileName.contains("биолог")) {
-            return "Биология";
-        } else if (fileName.contains("географ")) {
-            return "География";
-        } else if (fileName.contains("истори")) {
-            return "История";
-        } else if (fileName.contains("обществ")) {
-            return "Обществознание";
-        } else if (fileName.contains("информат") || fileName.contains("инф")) {
-            return "Информатика";
+        LinkedHashMap<String, String> subjectPatterns = new LinkedHashMap<>();
+        subjectPatterns.put("Функциональная грамотность", "функциональн|фг|фкг");
+        subjectPatterns.put("Русский язык", "русск(ий|ого)?|русский язык|р\\W?я");
+        subjectPatterns.put("Литература", "литератур");
+        subjectPatterns.put("Математика", "математ|алгебр|геометр");
+        subjectPatterns.put("Английский язык", "англий|англ");
+        subjectPatterns.put("Немецкий язык", "немецк|нем\\W?я");
+        subjectPatterns.put("Физика", "физик");
+        subjectPatterns.put("Химия", "хими");
+        subjectPatterns.put("Биология", "биолог");
+        subjectPatterns.put("География", "географ");
+        subjectPatterns.put("История", "истори");
+        subjectPatterns.put("Обществознание", "обществозн|обществ");
+        subjectPatterns.put("Информатика", "информат|программир");
+        subjectPatterns.put("Окружающий мир", "окружающ");
+        subjectPatterns.put("Естествознание", "естествозн");
+
+        for (Map.Entry<String, String> entry : subjectPatterns.entrySet()) {
+            if (normalizedPath.matches(".*(" + entry.getValue() + ").*")) {
+                return entry.getKey();
+            }
         }
 
-        // Если не нашли в имени файла, пробуем из родительской папки
-        Path parent = path.getParent();
-        if (parent != null) {
-            String parentName = parent.getFileName().toString().toLowerCase();
-            if (parentName.contains("фкг")) return "Функциональная грамотность";
-            if (parentName.contains("мат")) return "Математика";
-            // ... и т.д.
-        }
+        log.warn("Не удалось определить предмет по пути: {}", path);
+        return "Другие предметы";
+    }
 
-        return "Другие предметы"; // fallback
+    private String normalizePathForMatching(Path path) {
+        return path.toString()
+                .toLowerCase()
+                .replace('ё', 'е')
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .replace('.', ' ');
     }
 
     /**

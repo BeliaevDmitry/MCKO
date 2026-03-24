@@ -1,4 +1,4 @@
-package org.school.MckoReport.MckoCompleks.service;
+package org.school.MckoReport.MckoCompleks.service.report;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -66,7 +66,7 @@ public class ExcelExportService {
         // Создаем заголовки
         Row headerRow = sheet.createRow(0);
         String[] headers = {
-                "ФИО", "Код ученика", "Класс", "Предмет", "Дата", "Школа",
+                "ФИО", "Код ученика", "Класс", "Предмет", "Дата", "Учебный год", "Школа",
                 "Параллель", "Литера", "Вариант", "Балл", "Процент", "Оценка",
                 "Номер ученика", "JSON баллы"
         };
@@ -89,22 +89,20 @@ public class ExcelExportService {
                 row.createCell(2).setCellValue(record.getClassName() != null ? record.getClassName() : "");
                 row.createCell(3).setCellValue(record.getSubject() != null ? record.getSubject() : "");
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
-                row.createCell(5).setCellValue(record.getSchool() != null ? record.getSchool() : "");
-                row.createCell(6).setCellValue(record.getParallel() != null ? record.getParallel().toString() : "");
-                row.createCell(7).setCellValue(record.getLetter() != null ? record.getLetter() : "");
-                row.createCell(8).setCellValue(record.getVariant() != null ? record.getVariant().toString() : "");
-                row.createCell(9).setCellValue(record.getBall() != null ? record.getBall().toString() : "");
-                row.createCell(10).setCellValue(record.getPercentCompleted() != null ? record.getPercentCompleted().toString() : "");
-                row.createCell(11).setCellValue(record.getMark() != null ? record.getMark().toString() : "");
-                row.createCell(12).setCellValue(record.getStudentNumber() != null ? record.getStudentNumber().toString() : "");
-                row.createCell(13).setCellValue(record.getTaskScores() != null ? record.getTaskScores() : "");
+                row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
+                row.createCell(6).setCellValue(record.getSchool() != null ? record.getSchool() : "");
+                row.createCell(7).setCellValue(record.getParallel() != null ? record.getParallel().toString() : "");
+                row.createCell(8).setCellValue(record.getLetter() != null ? record.getLetter() : "");
+                row.createCell(9).setCellValue(record.getVariant() != null ? record.getVariant().toString() : "");
+                row.createCell(10).setCellValue(record.getBall() != null ? record.getBall().toString() : "");
+                row.createCell(11).setCellValue(record.getPercentCompleted() != null ? record.getPercentCompleted().toString() : "");
+                row.createCell(12).setCellValue(record.getMark() != null ? record.getMark().toString() : "");
+                row.createCell(13).setCellValue(record.getStudentNumber() != null ? record.getStudentNumber().toString() : "");
+                row.createCell(14).setCellValue(record.getTaskScores() != null ? record.getTaskScores() : "");
             }
         }
 
-        // Авторазмер колонок
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        finalizeSheet(sheet, headers.length, rowNum);
     }
 
     private void createFGSheet(Workbook workbook, List<CombinedResultData> data,
@@ -115,7 +113,7 @@ public class ExcelExportService {
         // Создаем заголовки
         Row headerRow = sheet.createRow(0);
         String[] headers = {
-                "ФИО", "Код ученика", "Класс", "Предмет", "Дата", "Школа",
+                "ФИО", "Код ученика", "Класс", "Предмет", "Дата", "Учебный год", "Школа",
                 "Общий процент", "Уровень освоения",
                 "Раздел 1 %", "Раздел 2 %", "Раздел 3 %"
         };
@@ -136,19 +134,17 @@ public class ExcelExportService {
                 row.createCell(2).setCellValue(record.getClassName() != null ? record.getClassName() : "");
                 row.createCell(3).setCellValue(record.getSubject() != null ? record.getSubject() : "");
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
-                row.createCell(5).setCellValue(record.getSchool() != null ? record.getSchool() : "");
-                row.createCell(6).setCellValue(record.getOverallPercent() != null ? record.getOverallPercent() : "");
-                row.createCell(7).setCellValue(record.getMasteryLevel() != null ? record.getMasteryLevel() : "");
-                row.createCell(8).setCellValue(record.getSection1Percent() != null ? record.getSection1Percent() : "");
-                row.createCell(9).setCellValue(record.getSection2Percent() != null ? record.getSection2Percent() : "");
-                row.createCell(10).setCellValue(record.getSection3Percent() != null ? record.getSection3Percent() : "");
+                row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
+                row.createCell(6).setCellValue(record.getSchool() != null ? record.getSchool() : "");
+                row.createCell(7).setCellValue(record.getOverallPercent() != null ? record.getOverallPercent() : "");
+                row.createCell(8).setCellValue(record.getMasteryLevel() != null ? record.getMasteryLevel() : "");
+                row.createCell(9).setCellValue(record.getSection1Percent() != null ? record.getSection1Percent() : "");
+                row.createCell(10).setCellValue(record.getSection2Percent() != null ? record.getSection2Percent() : "");
+                row.createCell(11).setCellValue(record.getSection3Percent() != null ? record.getSection3Percent() : "");
             }
         }
         log.debug("вышел из цикла");
-        // Авторазмер колонок
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        finalizeSheet(sheet, headers.length, rowNum);
     }
 
     private CellStyle createHeaderStyle(Workbook workbook) {
@@ -170,23 +166,23 @@ public class ExcelExportService {
         Map<String, WorkSummary> workSummaryMap = new LinkedHashMap<>();
 
         for (ListStudentData student : allStudents) {
-            String key = buildWorkKey(student.getSchool(), student.getSubject(), student.getDate(), student.getClassName());
+            String key = buildWorkKey(student.getSchool(), student.getSubject(), student.getDate(), student.getClassName(), student.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
-                    k -> new WorkSummary(student.getSchool(), student.getSubject(), student.getDate(), student.getClassName()));
+                    k -> new WorkSummary(student.getSchool(), student.getSubject(), student.getDate(), student.getClassName(), student.getSchoolYear()));
             summary.childSheetRows++;
         }
 
         for (StudentResultData result : allStudentResults) {
-            String key = buildWorkKey(result.getSchool(), result.getSubject(), result.getDate(), result.getClassName());
+            String key = buildWorkKey(result.getSchool(), result.getSubject(), result.getDate(), result.getClassName(), result.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
-                    k -> new WorkSummary(result.getSchool(), result.getSubject(), result.getDate(), result.getClassName()));
+                    k -> new WorkSummary(result.getSchool(), result.getSubject(), result.getDate(), result.getClassName(), result.getSchoolYear()));
             summary.resultRows++;
         }
 
         for (StudentResultFGData fgResult : allStudentFGResults) {
-            String key = buildWorkKey(fgResult.getSchool(), fgResult.getSubject(), fgResult.getDate(), fgResult.getClassName());
+            String key = buildWorkKey(fgResult.getSchool(), fgResult.getSubject(), fgResult.getDate(), fgResult.getClassName(), fgResult.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
-                    k -> new WorkSummary(fgResult.getSchool(), fgResult.getSubject(), fgResult.getDate(), fgResult.getClassName()));
+                    k -> new WorkSummary(fgResult.getSchool(), fgResult.getSubject(), fgResult.getDate(), fgResult.getClassName(), fgResult.getSchoolYear()));
             summary.fgRows++;
         }
 
@@ -200,7 +196,7 @@ public class ExcelExportService {
         Sheet sheet = workbook.createSheet(sheetName);
         Row headerRow = sheet.createRow(0);
         String[] headers = {
-                "Школа", "Предмет", "Дата", "Класс",
+                "Школа", "Предмет", "Дата", "Учебный год", "Класс",
                 "Строк в листе детей", "Строк в результатах", "Строк в ФГ"
         };
 
@@ -216,15 +212,14 @@ public class ExcelExportService {
             row.createCell(0).setCellValue(valueOrEmpty(summary.school));
             row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
             row.createCell(2).setCellValue(valueOrEmpty(summary.date));
-            row.createCell(3).setCellValue(valueOrEmpty(summary.className));
-            row.createCell(4).setCellValue(summary.childSheetRows);
-            row.createCell(5).setCellValue(summary.resultRows);
-            row.createCell(6).setCellValue(summary.fgRows);
+            row.createCell(3).setCellValue(valueOrEmpty(summary.schoolYear));
+            row.createCell(4).setCellValue(valueOrEmpty(summary.className));
+            row.createCell(5).setCellValue(summary.childSheetRows);
+            row.createCell(6).setCellValue(summary.resultRows);
+            row.createCell(7).setCellValue(summary.fgRows);
         }
 
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        finalizeSheet(sheet, headers.length, rowNum);
     }
 
     private void createMissingWorksSheet(Workbook workbook,
@@ -234,7 +229,7 @@ public class ExcelExportService {
         Sheet sheet = workbook.createSheet(sheetName);
         Row headerRow = sheet.createRow(0);
         String[] headers = {
-                "Школа", "Предмет", "Дата", "Класс", "Проблема",
+                "Школа", "Предмет", "Дата", "Учебный год", "Класс", "Проблема",
                 "Строк в листе детей", "Строк в результатах", "Строк в ФГ"
         };
 
@@ -255,14 +250,23 @@ public class ExcelExportService {
             row.createCell(0).setCellValue(valueOrEmpty(summary.school));
             row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
             row.createCell(2).setCellValue(valueOrEmpty(summary.date));
-            row.createCell(3).setCellValue(valueOrEmpty(summary.className));
-            row.createCell(4).setCellValue(String.join("; ", problems));
-            row.createCell(5).setCellValue(summary.childSheetRows);
-            row.createCell(6).setCellValue(summary.resultRows);
-            row.createCell(7).setCellValue(summary.fgRows);
+            row.createCell(3).setCellValue(valueOrEmpty(summary.schoolYear));
+            row.createCell(4).setCellValue(valueOrEmpty(summary.className));
+            row.createCell(5).setCellValue(String.join("; ", problems));
+            row.createCell(6).setCellValue(summary.childSheetRows);
+            row.createCell(7).setCellValue(summary.resultRows);
+            row.createCell(8).setCellValue(summary.fgRows);
         }
 
-        for (int i = 0; i < headers.length; i++) {
+        finalizeSheet(sheet, headers.length, rowNum);
+    }
+
+    private void finalizeSheet(Sheet sheet, int headerCount, int rowNum) {
+        sheet.createFreezePane(0, 1);
+        if (rowNum > 0) {
+            sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, Math.max(rowNum - 1, 0), 0, headerCount - 1));
+        }
+        for (int i = 0; i < headerCount; i++) {
             sheet.autoSizeColumn(i);
         }
     }
@@ -280,12 +284,13 @@ public class ExcelExportService {
         return problems;
     }
 
-    private String buildWorkKey(String school, String subject, String date, String className) {
-        return String.format("%s|%s|%s|%s",
+    private String buildWorkKey(String school, String subject, String date, String className, String schoolYear) {
+        return String.format("%s|%s|%s|%s|%s",
                 valueOrEmpty(school),
                 valueOrEmpty(subject),
                 valueOrEmpty(date),
-                valueOrEmpty(className));
+                valueOrEmpty(className),
+                valueOrEmpty(schoolYear));
     }
 
     private String valueOrEmpty(String value) {
@@ -297,15 +302,17 @@ public class ExcelExportService {
         private final String subject;
         private final String date;
         private final String className;
+        private final String schoolYear;
         private int childSheetRows;
         private int resultRows;
         private int fgRows;
 
-        private WorkSummary(String school, String subject, String date, String className) {
+        private WorkSummary(String school, String subject, String date, String className, String schoolYear) {
             this.school = school;
             this.subject = subject;
             this.date = date;
             this.className = className;
+            this.schoolYear = schoolYear;
         }
     }
 }

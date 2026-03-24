@@ -1,10 +1,10 @@
-package org.school.MckoReport.MckoCompleks.service.impl;
+package org.school.MckoReport.MckoCompleks.service.parser;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
-import org.school.MckoReport.MckoCompleks.service.ResultFGProcessorService;
+import org.school.MckoReport.MckoCompleks.service.parser.ResultFGProcessorService;
 import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
 import org.springframework.stereotype.Service;
 
@@ -42,7 +42,7 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
             String school = headerInfo.get("school");
             log.debug("// Извлекаем общую информацию из заголовка ФГ String date {}" +
                     "адрес файла {}", date, patch);
-            date = DateNormalizerUtil.normalizeDateWithFileFallback(date,patch.toString());
+            date = DateNormalizerUtil.normalizeDate(date);
             log.debug("после нормализации date {}", date);
 
             // Извлекаем данные студентов
@@ -294,6 +294,7 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
             result.setClassName(className);
             result.setSubject(subject);
             result.setDate(date);
+            result.setSchoolYear(DateNormalizerUtil.calculateSchoolYear(date));
             result.setSchool(school);
             result.setOverallPercent(overallPercent.isEmpty() ? "0" : overallPercent);
             result.setMasteryLevel(masteryLevel.isEmpty() ? "Не определен" : masteryLevel);
@@ -388,6 +389,7 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
                         result.setClassName(className);
                         result.setSubject(subject);
                         result.setDate(date);
+                        result.setSchoolYear(DateNormalizerUtil.calculateSchoolYear(date));
                         result.setOverallPercent(overallPercent);
                         result.setMasteryLevel(masteryLevel.isEmpty() ? "Не определен" : masteryLevel);
                         result.setSection1Percent(section1Percent);

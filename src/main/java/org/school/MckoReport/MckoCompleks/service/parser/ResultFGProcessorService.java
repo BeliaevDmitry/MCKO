@@ -1,4 +1,4 @@
-package org.school.MckoReport.MckoCompleks.service;
+package org.school.MckoReport.MckoCompleks.service.parser;
 
 import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
 
