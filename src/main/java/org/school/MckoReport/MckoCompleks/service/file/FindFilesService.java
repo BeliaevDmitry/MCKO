@@ -1,4 +1,4 @@
-package org.school.MckoReport.MckoCompleks.service;
+package org.school.MckoReport.MckoCompleks.service.file;
 
 import org.school.MckoReport.MckoCompleks.model.ArchiveEntry;
 import org.springframework.stereotype.Service;

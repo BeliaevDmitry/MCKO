@@ -1,4 +1,4 @@
-package org.school.MckoReport.MckoCompleks.service;
+package org.school.MckoReport.MckoCompleks.service.orchestration;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +9,12 @@ import org.school.MckoReport.MckoCompleks.model.*;
 import org.school.MckoReport.MckoCompleks.repository.ListStudentDataRepository;
 import org.school.MckoReport.MckoCompleks.repository.StudentResultDataRepository;
 import org.school.MckoReport.MckoCompleks.repository.StudentResultFGDataRepository;
+import org.school.MckoReport.MckoCompleks.service.file.FindFilesService;
+import org.school.MckoReport.MckoCompleks.service.parser.ListProcessingService;
+import org.school.MckoReport.MckoCompleks.service.parser.ResultFGProcessorService;
+import org.school.MckoReport.MckoCompleks.service.parser.ResultProcessorService;
+import org.school.MckoReport.MckoCompleks.service.report.DataCombinationService;
+import org.school.MckoReport.MckoCompleks.service.report.ExcelExportService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

@@ -1,10 +1,10 @@
-package org.school.MckoReport.MckoCompleks.service.impl;
+package org.school.MckoReport.MckoCompleks.service.parser;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
-import org.school.MckoReport.MckoCompleks.service.ResultFGProcessorService;
+import org.school.MckoReport.MckoCompleks.service.parser.ResultFGProcessorService;
 import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
 import org.springframework.stereotype.Service;
 
