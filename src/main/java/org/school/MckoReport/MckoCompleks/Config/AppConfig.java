@@ -12,7 +12,7 @@ public class AppConfig {
     );
 
     public static final List<String> SCHOOLS_MCKO = List.of(
-            "ГБОУ Школа № 7"
+            "ГБОУ № 7"
             //,"ГБОУ Школа № 1811"
     );
 
