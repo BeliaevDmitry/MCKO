@@ -401,7 +401,7 @@ public class GeneralService {
         int totalFailed = 0;
         List<String> successfullyProcessed = new ArrayList<>();
 
-        for (String schoolName : AppConfig.SCHOOLS_MCKO) {
+        for (String schoolName : AppConfig.SCHOOLS) {
             log.info("Создание общего отчета для школы: {}", schoolName);
 
 
