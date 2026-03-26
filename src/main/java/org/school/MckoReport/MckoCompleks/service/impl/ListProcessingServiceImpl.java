@@ -253,6 +253,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                         .subject(subject)
                         .date(date)
                         .school(school)
+                        .schoolYear(DateNormalizerUtil.calculateSchoolYear(date))
                         .build();
 
                 students.add(student);
