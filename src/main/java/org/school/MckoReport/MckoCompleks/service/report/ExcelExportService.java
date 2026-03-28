@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.school.MckoReport.MckoCompleks.dto.CombinedResultData;
+import org.school.MckoReport.MckoCompleks.dto.ProcessingErrorInfo;
 import org.school.MckoReport.MckoCompleks.model.ListStudentData;
 import org.school.MckoReport.MckoCompleks.model.OtherDiagnosticData;
 import org.school.MckoReport.MckoCompleks.model.StudentResultData;
@@ -27,7 +28,14 @@ public class ExcelExportService {
      * Создать Excel файл с двумя вкладками
      */
     public byte[] exportToExcel(List<CombinedResultData> data) throws IOException {
-        return exportToExcel(data, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        return exportToExcel(
+                data,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList()
+        );
     }
 
     /**
@@ -37,7 +45,8 @@ public class ExcelExportService {
                                 List<ListStudentData> allStudents,
                                 List<StudentResultData> allStudentResults,
                                 List<StudentResultFGData> allStudentFGResults,
-                                List<OtherDiagnosticData> allOtherDiagnosticResults) throws IOException {
+                                List<OtherDiagnosticData> allOtherDiagnosticResults,
+                                List<ProcessingErrorInfo> processingErrors) throws IOException {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             log.debug("длина List<CombinedResultData> data в exportToExcel перед передачей в генератор эксель {}", data.size());
@@ -58,11 +67,39 @@ public class ExcelExportService {
             );
             createAllWorksSheet(workbook, workSummaryMap, headerStyle, "Все работы");
             createMissingWorksSheet(workbook, workSummaryMap, headerStyle, "Незагруженные работы");
+            createProcessingErrorsSheet(workbook, processingErrors, headerStyle, "Ошибки обработки");
 
             // Записываем в массив байтов
             workbook.write(outputStream);
             return outputStream.toByteArray();
         }
+    }
+
+    private void createProcessingErrorsSheet(Workbook workbook,
+                                             List<ProcessingErrorInfo> processingErrors,
+                                             CellStyle headerStyle,
+                                             String sheetName) {
+        Sheet sheet = workbook.createSheet(sheetName);
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {"Школа", "Файл", "Этап", "Причина", "Дата из файла (не обработана)"};
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        int rowNum = 1;
+        for (ProcessingErrorInfo error : processingErrors) {
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(valueOrEmpty(error.getSchool()));
+            row.createCell(1).setCellValue(valueOrEmpty(error.getFileName()));
+            row.createCell(2).setCellValue(valueOrEmpty(error.getStage()));
+            row.createCell(3).setCellValue(valueOrEmpty(error.getReason()));
+            row.createCell(4).setCellValue(valueOrEmpty(error.getRawDate()));
+        }
+
+        finalizeSheet(sheet, headers.length, rowNum);
     }
 
     private void createResultsSheet(Workbook workbook, List<CombinedResultData> data,

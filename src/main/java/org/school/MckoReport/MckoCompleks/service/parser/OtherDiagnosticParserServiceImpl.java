@@ -44,7 +44,7 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
                     .build();
 
             setAveragePercents(data, text);
-            validateRequiredFields(data, filePath);
+            validateRequiredFields(data, filePath, date);
 
             results.add(data);
 
@@ -118,7 +118,7 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
         data.setCityPercent(null);
     }
 
-    private void validateRequiredFields(OtherDiagnosticData data, Path filePath) {
+    private void validateRequiredFields(OtherDiagnosticData data, Path filePath, String rawDate) {
         List<String> missingFields = new ArrayList<>();
 
         if (!DateNormalizerUtil.isValidDate(data.getDate())) {
@@ -147,7 +147,8 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
             );
             throw new ProcessingException(
                     "Файл не прошел валидацию, отсутствуют обязательные поля: " +
-                            String.join(", ", missingFields) + " (" + filePath.getFileName() + ")"
+                            String.join(", ", missingFields) +
+                            " (" + filePath.getFileName() + "); rawDate='" + rawDate + "'"
             );
         }
     }
