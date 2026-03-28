@@ -241,6 +241,8 @@ public class ListProcessingServiceImpl implements ListProcessingService {
             String className = metadata.getOrDefault("className", "");
             String subject = metadata.getOrDefault("subject", "");
 
+            validateMetadata(fileName, date, className, subject);
+
 
             List<ListStudentData> rawStudents = extractStudentsFromText(text);
 
@@ -261,6 +263,27 @@ public class ListProcessingServiceImpl implements ListProcessingService {
         }
 
         return students;
+    }
+
+    private void validateMetadata(String fileName, String date, String className, String subject) {
+        List<String> missing = new ArrayList<>();
+
+        if (!DateNormalizerUtil.isValidDate(date)) {
+            missing.add("дата");
+        }
+        if (className == null || className.trim().isEmpty()) {
+            missing.add("класс");
+        }
+        if (subject == null || subject.trim().isEmpty()) {
+            missing.add("предмет");
+        }
+
+        if (!missing.isEmpty()) {
+            throw new ProcessingException(
+                    "Файл списка участников не прошел валидацию: " +
+                            String.join(", ", missing) + " (" + fileName + ")"
+            );
+        }
     }
 
     /**

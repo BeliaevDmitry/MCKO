@@ -44,6 +44,7 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
                     .build();
 
             setAveragePercents(data, text);
+            validateRequiredFields(data, filePath);
 
             results.add(data);
 
@@ -82,7 +83,7 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
         if (matcher.find()) {
             return matcher.group(1);
         }
-        return "";
+        return "не указан";
     }
 
     private String extractSubject(String text) {
@@ -113,7 +114,35 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
             return;
         }
 
-        data.setAvgPercent("0%");
+        data.setAvgPercent("не определен");
         data.setCityPercent(null);
+    }
+
+    private void validateRequiredFields(OtherDiagnosticData data, Path filePath) {
+        List<String> missingFields = new ArrayList<>();
+
+        if (!hasText(data.getDate()) || "дата не определена".equalsIgnoreCase(data.getDate())) {
+            missingFields.add("дата");
+        }
+        if (!hasText(data.getClassName()) || "не указан".equalsIgnoreCase(data.getClassName())) {
+            missingFields.add("класс");
+        }
+        if (!hasText(data.getSubject()) || "не указан".equalsIgnoreCase(data.getSubject())) {
+            missingFields.add("предмет");
+        }
+        if (!hasText(data.getAvgPercent()) || "не определен".equalsIgnoreCase(data.getAvgPercent())) {
+            missingFields.add("средний % выполнения");
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new ProcessingException(
+                    "Файл не прошел валидацию, отсутствуют обязательные поля: " +
+                            String.join(", ", missingFields) + " (" + filePath.getFileName() + ")"
+            );
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

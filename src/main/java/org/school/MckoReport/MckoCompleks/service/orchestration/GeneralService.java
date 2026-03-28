@@ -440,6 +440,9 @@ public class GeneralService {
                 continue;
             }
 
+            List<OtherDiagnosticData> allOtherDiagnosticResults = otherDiagnosticDataRepository.findBySchool(schoolName);
+            log.debug("длина allOtherDiagnosticResults {}", allOtherDiagnosticResults.size());
+
             // Создаем Map для быстрого поиска результатов по ключам
             Map<String, StudentResultData> resultDataMap = allStudentResults.stream()
                     .filter(result -> hasText(result.getCode()))
@@ -466,6 +469,31 @@ public class GeneralService {
                                     fg.getSubject(), fg.getDate()),
                             fg -> fg,
                             (existing, replacement) -> existing // при дубликатах берем первый
+                    ));
+
+            Map<String, OtherDiagnosticData> otherDiagnosticByKey = allOtherDiagnosticResults.stream()
+                    .collect(Collectors.toMap(
+                            diagnostic -> buildReportWorkKey(
+                                    schoolName,
+                                    diagnostic.getSubject(),
+                                    diagnostic.getDate(),
+                                    diagnostic.getClassName(),
+                                    diagnostic.getSchoolYear()
+                            ),
+                            diagnostic -> diagnostic,
+                            (existing, replacement) -> existing
+                    ));
+
+            Map<String, OtherDiagnosticData> otherDiagnosticByKeyWithoutYear = allOtherDiagnosticResults.stream()
+                    .collect(Collectors.toMap(
+                            diagnostic -> buildReportWorkKeyWithoutYear(
+                                    schoolName,
+                                    diagnostic.getSubject(),
+                                    diagnostic.getDate(),
+                                    diagnostic.getClassName()
+                            ),
+                            diagnostic -> diagnostic,
+                            (existing, replacement) -> existing
                     ));
 
             // Собираем объединенные данные
@@ -536,6 +564,33 @@ public class GeneralService {
                 }
                 combined.setSchoolYear(schoolYear);
 
+                String classNameForLookup = combined.getClassName();
+                OtherDiagnosticData diagnosticData = otherDiagnosticByKey.get(
+                        buildReportWorkKey(
+                                schoolName,
+                                combined.getSubject(),
+                                combined.getDate(),
+                                classNameForLookup,
+                                combined.getSchoolYear()
+                        )
+                );
+
+                if (diagnosticData == null) {
+                    diagnosticData = otherDiagnosticByKeyWithoutYear.get(
+                            buildReportWorkKeyWithoutYear(
+                                    schoolName,
+                                    combined.getSubject(),
+                                    combined.getDate(),
+                                    classNameForLookup
+                            )
+                    );
+                }
+
+                if (diagnosticData != null) {
+                    combined.setClassLevel(diagnosticData.getAvgPercent());
+                    combined.setCityLevel(diagnosticData.getCityPercent());
+                }
+
                 if (fgData != null) {
                     // Копируем данные из StudentResultFGData
                     combined.setOverallPercent(fgData.getOverallPercent());
@@ -557,7 +612,8 @@ public class GeneralService {
                     combinedResults,
                     allStudents,
                     allStudentResults,
-                    allStudentFGResults
+                    allStudentFGResults,
+                    allOtherDiagnosticResults
             );
 
             // Сохраняем
@@ -604,6 +660,25 @@ public class GeneralService {
                 className != null ? className : "",
                 subject != null ? subject : "",
                 date != null ? date : ""
+        );
+    }
+
+    private String buildReportWorkKey(String school, String subject, String date, String className, String schoolYear) {
+        return String.format("%s|%s|%s|%s|%s",
+                school != null ? school : "",
+                subject != null ? subject : "",
+                date != null ? date : "",
+                className != null ? className : "",
+                schoolYear != null ? schoolYear : ""
+        );
+    }
+
+    private String buildReportWorkKeyWithoutYear(String school, String subject, String date, String className) {
+        return String.format("%s|%s|%s|%s",
+                school != null ? school : "",
+                subject != null ? subject : "",
+                date != null ? date : "",
+                className != null ? className : ""
         );
     }
 
@@ -686,6 +761,7 @@ public class GeneralService {
                         List<OtherDiagnosticData> dataList = otherDiagnosticParserService.extractDiagnosticData(path);
 
                         if (!dataList.isEmpty()) {
+                            applySchoolNameToOtherDiagnostics(dataList, schoolName);
                             // Сохраняем пакетами если нужно
                             if (AppConfig.BATCH_SIZE > 0 && dataList.size() > AppConfig.BATCH_SIZE) {
                                 saveInBatchesOtherDiagnostic(dataList, AppConfig.BATCH_SIZE);
@@ -749,6 +825,12 @@ public class GeneralService {
             List<OtherDiagnosticData> batch = dataList.subList(i, end);
             otherDiagnosticDataRepository.saveAll(batch);
             log.debug("Сохранен пакет {}-{} из {}", i + 1, end, dataList.size());
+        }
+    }
+
+    private void applySchoolNameToOtherDiagnostics(List<OtherDiagnosticData> dataList, String schoolName) {
+        for (OtherDiagnosticData data : dataList) {
+            data.setSchool(schoolName);
         }
     }
 }
