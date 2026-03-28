@@ -74,6 +74,7 @@ public class ExcelExportService {
         Row headerRow = sheet.createRow(0);
         String[] headers = {
                 "ФИО", "Код ученика", "Класс", "Предмет", "Дата", "Учебный год", "Школа",
+                "Уровень класса", "Уровень города",
                 "Параллель", "Литера", "Вариант", "Балл", "Процент", "Оценка",
                 "Номер ученика", "JSON баллы"
         };
@@ -98,14 +99,16 @@ public class ExcelExportService {
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
                 row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
                 row.createCell(6).setCellValue(record.getSchool() != null ? record.getSchool() : "");
-                row.createCell(7).setCellValue(record.getParallel() != null ? record.getParallel().toString() : "");
-                row.createCell(8).setCellValue(record.getLetter() != null ? record.getLetter() : "");
-                row.createCell(9).setCellValue(record.getVariant() != null ? record.getVariant().toString() : "");
-                row.createCell(10).setCellValue(record.getBall() != null ? record.getBall().toString() : "");
-                row.createCell(11).setCellValue(record.getPercentCompleted() != null ? record.getPercentCompleted().toString() : "");
-                row.createCell(12).setCellValue(record.getMark() != null ? record.getMark().toString() : "");
-                row.createCell(13).setCellValue(record.getStudentNumber() != null ? record.getStudentNumber().toString() : "");
-                row.createCell(14).setCellValue(record.getTaskScores() != null ? record.getTaskScores() : "");
+                row.createCell(7).setCellValue(record.getClassLevel() != null ? record.getClassLevel() : "");
+                row.createCell(8).setCellValue(record.getCityLevel() != null ? record.getCityLevel() : "");
+                row.createCell(9).setCellValue(record.getParallel() != null ? record.getParallel().toString() : "");
+                row.createCell(10).setCellValue(record.getLetter() != null ? record.getLetter() : "");
+                row.createCell(11).setCellValue(record.getVariant() != null ? record.getVariant().toString() : "");
+                row.createCell(12).setCellValue(record.getBall() != null ? record.getBall().toString() : "");
+                row.createCell(13).setCellValue(record.getPercentCompleted() != null ? record.getPercentCompleted().toString() : "");
+                row.createCell(14).setCellValue(record.getMark() != null ? record.getMark().toString() : "");
+                row.createCell(15).setCellValue(record.getStudentNumber() != null ? record.getStudentNumber().toString() : "");
+                row.createCell(16).setCellValue(record.getTaskScores() != null ? record.getTaskScores() : "");
             }
         }
 
@@ -121,6 +124,7 @@ public class ExcelExportService {
         Row headerRow = sheet.createRow(0);
         String[] headers = {
                 "ФИО", "Код ученика", "Класс", "Предмет", "Дата", "Учебный год", "Школа",
+                "Уровень класса", "Уровень города",
                 "Общий процент", "Уровень освоения",
                 "Раздел 1 %", "Раздел 2 %", "Раздел 3 %"
         };
@@ -143,11 +147,13 @@ public class ExcelExportService {
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
                 row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
                 row.createCell(6).setCellValue(record.getSchool() != null ? record.getSchool() : "");
-                row.createCell(7).setCellValue(record.getOverallPercent() != null ? record.getOverallPercent() : "");
-                row.createCell(8).setCellValue(record.getMasteryLevel() != null ? record.getMasteryLevel() : "");
-                row.createCell(9).setCellValue(record.getSection1Percent() != null ? record.getSection1Percent() : "");
-                row.createCell(10).setCellValue(record.getSection2Percent() != null ? record.getSection2Percent() : "");
-                row.createCell(11).setCellValue(record.getSection3Percent() != null ? record.getSection3Percent() : "");
+                row.createCell(7).setCellValue(record.getClassLevel() != null ? record.getClassLevel() : "");
+                row.createCell(8).setCellValue(record.getCityLevel() != null ? record.getCityLevel() : "");
+                row.createCell(9).setCellValue(record.getOverallPercent() != null ? record.getOverallPercent() : "");
+                row.createCell(10).setCellValue(record.getMasteryLevel() != null ? record.getMasteryLevel() : "");
+                row.createCell(11).setCellValue(record.getSection1Percent() != null ? record.getSection1Percent() : "");
+                row.createCell(12).setCellValue(record.getSection2Percent() != null ? record.getSection2Percent() : "");
+                row.createCell(13).setCellValue(record.getSection3Percent() != null ? record.getSection3Percent() : "");
             }
         }
         log.debug("вышел из цикла");

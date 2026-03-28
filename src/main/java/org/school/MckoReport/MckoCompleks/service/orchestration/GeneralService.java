@@ -471,6 +471,31 @@ public class GeneralService {
                             (existing, replacement) -> existing // при дубликатах берем первый
                     ));
 
+            Map<String, OtherDiagnosticData> otherDiagnosticByKey = allOtherDiagnosticResults.stream()
+                    .collect(Collectors.toMap(
+                            diagnostic -> buildReportWorkKey(
+                                    schoolName,
+                                    diagnostic.getSubject(),
+                                    diagnostic.getDate(),
+                                    diagnostic.getClassName(),
+                                    diagnostic.getSchoolYear()
+                            ),
+                            diagnostic -> diagnostic,
+                            (existing, replacement) -> existing
+                    ));
+
+            Map<String, OtherDiagnosticData> otherDiagnosticByKeyWithoutYear = allOtherDiagnosticResults.stream()
+                    .collect(Collectors.toMap(
+                            diagnostic -> buildReportWorkKeyWithoutYear(
+                                    schoolName,
+                                    diagnostic.getSubject(),
+                                    diagnostic.getDate(),
+                                    diagnostic.getClassName()
+                            ),
+                            diagnostic -> diagnostic,
+                            (existing, replacement) -> existing
+                    ));
+
             // Собираем объединенные данные
             List<CombinedResultData> combinedResults = new ArrayList<>();
             log.debug("длина combinedResults {}", combinedResults.size());
@@ -538,6 +563,33 @@ public class GeneralService {
                     schoolYear = fgData.getSchoolYear();
                 }
                 combined.setSchoolYear(schoolYear);
+
+                String classNameForLookup = combined.getClassName();
+                OtherDiagnosticData diagnosticData = otherDiagnosticByKey.get(
+                        buildReportWorkKey(
+                                schoolName,
+                                combined.getSubject(),
+                                combined.getDate(),
+                                classNameForLookup,
+                                combined.getSchoolYear()
+                        )
+                );
+
+                if (diagnosticData == null) {
+                    diagnosticData = otherDiagnosticByKeyWithoutYear.get(
+                            buildReportWorkKeyWithoutYear(
+                                    schoolName,
+                                    combined.getSubject(),
+                                    combined.getDate(),
+                                    classNameForLookup
+                            )
+                    );
+                }
+
+                if (diagnosticData != null) {
+                    combined.setClassLevel(diagnosticData.getAvgPercent());
+                    combined.setCityLevel(diagnosticData.getCityPercent());
+                }
 
                 if (fgData != null) {
                     // Копируем данные из StudentResultFGData
@@ -608,6 +660,25 @@ public class GeneralService {
                 className != null ? className : "",
                 subject != null ? subject : "",
                 date != null ? date : ""
+        );
+    }
+
+    private String buildReportWorkKey(String school, String subject, String date, String className, String schoolYear) {
+        return String.format("%s|%s|%s|%s|%s",
+                school != null ? school : "",
+                subject != null ? subject : "",
+                date != null ? date : "",
+                className != null ? className : "",
+                schoolYear != null ? schoolYear : ""
+        );
+    }
+
+    private String buildReportWorkKeyWithoutYear(String school, String subject, String date, String className) {
+        return String.format("%s|%s|%s|%s",
+                school != null ? school : "",
+                subject != null ? subject : "",
+                date != null ? date : "",
+                className != null ? className : ""
         );
     }
 

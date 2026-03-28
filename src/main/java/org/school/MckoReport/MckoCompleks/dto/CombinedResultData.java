@@ -35,6 +35,8 @@ public class CombinedResultData {
     private String section1Percent;
     private String section2Percent;
     private String section3Percent;
+    private String classLevel;
+    private String cityLevel;
 
     // Флаги наличия данных
     private boolean hasResultData;
