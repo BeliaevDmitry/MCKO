@@ -672,7 +672,7 @@ public class GeneralService {
     private String buildKey(String code, String className, String subject, String date) {
         return String.format("%s|%s|%s|%s",
                 code != null ? code : "",
-                className != null ? className : "",
+                normalizeClassToken(className),
                 subject != null ? subject : "",
                 date != null ? date : ""
         );
@@ -681,7 +681,7 @@ public class GeneralService {
     private String buildStudentNumberKey(Integer studentNumber, String className, String subject, String date) {
         return String.format("%s|%s|%s|%s",
                 studentNumber != null ? studentNumber : "",
-                className != null ? className : "",
+                normalizeClassToken(className),
                 subject != null ? subject : "",
                 date != null ? date : ""
         );
@@ -692,7 +692,7 @@ public class GeneralService {
                 school != null ? school : "",
                 subject != null ? subject : "",
                 date != null ? date : "",
-                className != null ? className : "",
+                normalizeClassToken(className),
                 schoolYear != null ? schoolYear : ""
         );
     }
@@ -702,8 +702,19 @@ public class GeneralService {
                 school != null ? school : "",
                 subject != null ? subject : "",
                 date != null ? date : "",
-                className != null ? className : ""
+                normalizeClassToken(className)
         );
+    }
+
+    private String normalizeClassToken(String className) {
+        if (className == null) {
+            return "";
+        }
+        String normalized = className.trim().toUpperCase().replace('Ё', 'Е');
+        if (normalized.matches("^\\d+[А-ЯЕ]$")) {
+            return normalized.replaceAll("^(\\d+)([А-ЯЕ])$", "$1-$2");
+        }
+        return normalized;
     }
 
     private boolean hasText(String value) {

@@ -131,7 +131,7 @@ public class ExcelExportService {
 
                 row.createCell(0).setCellValue(record.getNameFIO() != null ? record.getNameFIO() : "");
                 row.createCell(1).setCellValue(record.getCode() != null ? record.getCode() : "");
-                row.createCell(2).setCellValue(record.getClassName() != null ? record.getClassName() : "");
+                row.createCell(2).setCellValue(normalizeClassName(record.getClassName()));
                 row.createCell(3).setCellValue(record.getSubject() != null ? record.getSubject() : "");
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
                 row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
@@ -179,7 +179,7 @@ public class ExcelExportService {
                 Row row = sheet.createRow(rowNum++);
                 row.createCell(0).setCellValue(record.getNameFIO() != null ? record.getNameFIO() : "");
                 row.createCell(1).setCellValue(record.getCode() != null ? record.getCode() : "");
-                row.createCell(2).setCellValue(record.getClassName() != null ? record.getClassName() : "");
+                row.createCell(2).setCellValue(normalizeClassName(record.getClassName()));
                 row.createCell(3).setCellValue(record.getSubject() != null ? record.getSubject() : "");
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
                 row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
@@ -278,7 +278,7 @@ public class ExcelExportService {
             row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
             row.createCell(2).setCellValue(valueOrEmpty(summary.date));
             row.createCell(3).setCellValue(valueOrEmpty(summary.schoolYear));
-            row.createCell(4).setCellValue(valueOrEmpty(summary.className));
+            row.createCell(4).setCellValue(normalizeClassName(summary.className));
             row.createCell(5).setCellValue(valueOrEmpty(summary.classLevel));
             row.createCell(6).setCellValue(valueOrEmpty(summary.cityLevel));
             row.createCell(7).setCellValue(summary.childSheetRows);
@@ -320,7 +320,7 @@ public class ExcelExportService {
             row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
             row.createCell(2).setCellValue(valueOrEmpty(summary.date));
             row.createCell(3).setCellValue(valueOrEmpty(summary.schoolYear));
-            row.createCell(4).setCellValue(valueOrEmpty(summary.className));
+            row.createCell(4).setCellValue(normalizeClassName(summary.className));
             row.createCell(5).setCellValue(String.join("; ", problems));
             row.createCell(6).setCellValue(valueOrEmpty(summary.classLevel));
             row.createCell(7).setCellValue(valueOrEmpty(summary.cityLevel));
@@ -374,6 +374,17 @@ public class ExcelExportService {
 
     private String valueOrEmpty(String value) {
         return value != null ? value : "";
+    }
+
+    private String normalizeClassName(String className) {
+        if (className == null) {
+            return "";
+        }
+        String normalized = className.trim().toUpperCase().replace('Ё', 'Е');
+        if (normalized.matches("^\\d+[А-ЯЕ]$")) {
+            return normalized.replaceAll("^(\\d+)([А-ЯЕ])$", "$1-$2");
+        }
+        return normalized;
     }
 
     private static class WorkSummary {

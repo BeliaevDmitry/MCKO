@@ -81,7 +81,7 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
         Pattern pattern = Pattern.compile("Класс:\\s*(\\d+[А-Яа-яЁё]?)");
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
-            return matcher.group(1);
+            return normalizeClassName(matcher.group(1));
         }
         return "не указан";
     }
@@ -176,10 +176,45 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
             return "не указан";
         }
 
-        return rawSubject
-                .replaceAll("(?i)\\bокруг\\b.*$", "")
+        String subject = rawSubject
+                .replaceAll("[\\r\\n]+", " ")
+                .replaceAll("(?i)\\bокруг\\b\\s*:?\\s*.*$", "")
+                .replaceAll("(?i)\\bшкола\\b\\s*:?\\s*.*$", "")
+                .replaceAll("(?i)\\bкласс\\b\\s*:?\\s*.*$", "")
+                .replaceAll("[\\.;:,\\-\\s]+$", "")
                 .replaceAll("\\s+", " ")
                 .trim();
+
+        // Частые обрезанные названия из PDF
+        if ("Читательская".equalsIgnoreCase(subject)) {
+            return "Читательская грамотность";
+        }
+        if ("Информационная".equalsIgnoreCase(subject)) {
+            return "Информационная безопасность";
+        }
+        if ("Вероятность и".equalsIgnoreCase(subject)) {
+            return "Вероятность и статистика";
+        }
+        if ("Математика (базовый".equalsIgnoreCase(subject)) {
+            return "Математика (базовый уровень)";
+        }
+        if ("Математика (профильный".equalsIgnoreCase(subject)) {
+            return "Математика (профильный уровень)";
+        }
+
+        return subject;
+    }
+
+    private String normalizeClassName(String className) {
+        if (!hasText(className)) {
+            return "не указан";
+        }
+
+        String normalized = className.trim().toUpperCase();
+        if (normalized.matches("^\\d+[А-ЯЁ]$")) {
+            return normalized.replaceAll("^(\\d+)([А-ЯЁ])$", "$1-$2");
+        }
+        return normalized;
     }
 
     private boolean hasText(String value) {
