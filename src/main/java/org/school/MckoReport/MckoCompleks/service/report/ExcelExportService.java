@@ -5,7 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.school.MckoReport.MckoCompleks.dto.CombinedResultData;
+import org.school.MckoReport.MckoCompleks.dto.ProcessingErrorInfo;
 import org.school.MckoReport.MckoCompleks.model.ListStudentData;
+import org.school.MckoReport.MckoCompleks.model.OtherDiagnosticData;
 import org.school.MckoReport.MckoCompleks.model.StudentResultData;
 import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
 import org.school.MckoReport.MckoCompleks.util.TaskScoresConverter;
@@ -26,7 +28,14 @@ public class ExcelExportService {
      * Создать Excel файл с двумя вкладками
      */
     public byte[] exportToExcel(List<CombinedResultData> data) throws IOException {
-        return exportToExcel(data, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        return exportToExcel(
+                data,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList()
+        );
     }
 
     /**
@@ -35,7 +44,9 @@ public class ExcelExportService {
     public byte[] exportToExcel(List<CombinedResultData> data,
                                 List<ListStudentData> allStudents,
                                 List<StudentResultData> allStudentResults,
-                                List<StudentResultFGData> allStudentFGResults) throws IOException {
+                                List<StudentResultFGData> allStudentFGResults,
+                                List<OtherDiagnosticData> allOtherDiagnosticResults,
+                                List<ProcessingErrorInfo> processingErrors) throws IOException {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             log.debug("длина List<CombinedResultData> data в exportToExcel перед передачей в генератор эксель {}", data.size());
@@ -48,14 +59,47 @@ public class ExcelExportService {
             // Вкладка 2: Функциональная грамотность
             createFGSheet(workbook, data, headerStyle, "Функциональная грамотность");
 
-            Map<String, WorkSummary> workSummaryMap = buildWorkSummaryMap(allStudents, allStudentResults, allStudentFGResults);
+            Map<String, WorkSummary> workSummaryMap = buildWorkSummaryMap(
+                    allStudents,
+                    allStudentResults,
+                    allStudentFGResults,
+                    allOtherDiagnosticResults
+            );
             createAllWorksSheet(workbook, workSummaryMap, headerStyle, "Все работы");
             createMissingWorksSheet(workbook, workSummaryMap, headerStyle, "Незагруженные работы");
+            createProcessingErrorsSheet(workbook, processingErrors, headerStyle, "Ошибки обработки");
 
             // Записываем в массив байтов
             workbook.write(outputStream);
             return outputStream.toByteArray();
         }
+    }
+
+    private void createProcessingErrorsSheet(Workbook workbook,
+                                             List<ProcessingErrorInfo> processingErrors,
+                                             CellStyle headerStyle,
+                                             String sheetName) {
+        Sheet sheet = workbook.createSheet(sheetName);
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {"Школа", "Файл", "Этап", "Причина", "Дата из файла (не обработана)"};
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        int rowNum = 1;
+        for (ProcessingErrorInfo error : processingErrors) {
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(valueOrEmpty(error.getSchool()));
+            row.createCell(1).setCellValue(valueOrEmpty(error.getFileName()));
+            row.createCell(2).setCellValue(valueOrEmpty(error.getStage()));
+            row.createCell(3).setCellValue(valueOrEmpty(error.getReason()));
+            row.createCell(4).setCellValue(valueOrEmpty(error.getRawDate()));
+        }
+
+        finalizeSheet(sheet, headers.length, rowNum);
     }
 
     private void createResultsSheet(Workbook workbook, List<CombinedResultData> data,
@@ -67,6 +111,7 @@ public class ExcelExportService {
         Row headerRow = sheet.createRow(0);
         String[] headers = {
                 "ФИО", "Код ученика", "Класс", "Предмет", "Дата", "Учебный год", "Школа",
+                "Уровень класса", "Уровень города",
                 "Параллель", "Литера", "Вариант", "Балл", "Процент", "Оценка",
                 "Номер ученика", "JSON баллы"
         };
@@ -86,19 +131,21 @@ public class ExcelExportService {
 
                 row.createCell(0).setCellValue(record.getNameFIO() != null ? record.getNameFIO() : "");
                 row.createCell(1).setCellValue(record.getCode() != null ? record.getCode() : "");
-                row.createCell(2).setCellValue(record.getClassName() != null ? record.getClassName() : "");
+                row.createCell(2).setCellValue(normalizeClassName(record.getClassName()));
                 row.createCell(3).setCellValue(record.getSubject() != null ? record.getSubject() : "");
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
                 row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
                 row.createCell(6).setCellValue(record.getSchool() != null ? record.getSchool() : "");
-                row.createCell(7).setCellValue(record.getParallel() != null ? record.getParallel().toString() : "");
-                row.createCell(8).setCellValue(record.getLetter() != null ? record.getLetter() : "");
-                row.createCell(9).setCellValue(record.getVariant() != null ? record.getVariant().toString() : "");
-                row.createCell(10).setCellValue(record.getBall() != null ? record.getBall().toString() : "");
-                row.createCell(11).setCellValue(record.getPercentCompleted() != null ? record.getPercentCompleted().toString() : "");
-                row.createCell(12).setCellValue(record.getMark() != null ? record.getMark().toString() : "");
-                row.createCell(13).setCellValue(record.getStudentNumber() != null ? record.getStudentNumber().toString() : "");
-                row.createCell(14).setCellValue(record.getTaskScores() != null ? record.getTaskScores() : "");
+                row.createCell(7).setCellValue(record.getClassLevel() != null ? record.getClassLevel() : "");
+                row.createCell(8).setCellValue(record.getCityLevel() != null ? record.getCityLevel() : "");
+                row.createCell(9).setCellValue(record.getParallel() != null ? record.getParallel().toString() : "");
+                row.createCell(10).setCellValue(record.getLetter() != null ? record.getLetter() : "");
+                row.createCell(11).setCellValue(record.getVariant() != null ? record.getVariant().toString() : "");
+                row.createCell(12).setCellValue(record.getBall() != null ? record.getBall().toString() : "");
+                row.createCell(13).setCellValue(record.getPercentCompleted() != null ? record.getPercentCompleted().toString() : "");
+                row.createCell(14).setCellValue(record.getMark() != null ? record.getMark().toString() : "");
+                row.createCell(15).setCellValue(record.getStudentNumber() != null ? record.getStudentNumber().toString() : "");
+                row.createCell(16).setCellValue(record.getTaskScores() != null ? record.getTaskScores() : "");
             }
         }
 
@@ -114,6 +161,7 @@ public class ExcelExportService {
         Row headerRow = sheet.createRow(0);
         String[] headers = {
                 "ФИО", "Код ученика", "Класс", "Предмет", "Дата", "Учебный год", "Школа",
+                "Уровень класса", "Уровень города",
                 "Общий процент", "Уровень освоения",
                 "Раздел 1 %", "Раздел 2 %", "Раздел 3 %"
         };
@@ -131,16 +179,18 @@ public class ExcelExportService {
                 Row row = sheet.createRow(rowNum++);
                 row.createCell(0).setCellValue(record.getNameFIO() != null ? record.getNameFIO() : "");
                 row.createCell(1).setCellValue(record.getCode() != null ? record.getCode() : "");
-                row.createCell(2).setCellValue(record.getClassName() != null ? record.getClassName() : "");
+                row.createCell(2).setCellValue(normalizeClassName(record.getClassName()));
                 row.createCell(3).setCellValue(record.getSubject() != null ? record.getSubject() : "");
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
                 row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
                 row.createCell(6).setCellValue(record.getSchool() != null ? record.getSchool() : "");
-                row.createCell(7).setCellValue(record.getOverallPercent() != null ? record.getOverallPercent() : "");
-                row.createCell(8).setCellValue(record.getMasteryLevel() != null ? record.getMasteryLevel() : "");
-                row.createCell(9).setCellValue(record.getSection1Percent() != null ? record.getSection1Percent() : "");
-                row.createCell(10).setCellValue(record.getSection2Percent() != null ? record.getSection2Percent() : "");
-                row.createCell(11).setCellValue(record.getSection3Percent() != null ? record.getSection3Percent() : "");
+                row.createCell(7).setCellValue(record.getClassLevel() != null ? record.getClassLevel() : "");
+                row.createCell(8).setCellValue(record.getCityLevel() != null ? record.getCityLevel() : "");
+                row.createCell(9).setCellValue(record.getOverallPercent() != null ? record.getOverallPercent() : "");
+                row.createCell(10).setCellValue(record.getMasteryLevel() != null ? record.getMasteryLevel() : "");
+                row.createCell(11).setCellValue(record.getSection1Percent() != null ? record.getSection1Percent() : "");
+                row.createCell(12).setCellValue(record.getSection2Percent() != null ? record.getSection2Percent() : "");
+                row.createCell(13).setCellValue(record.getSection3Percent() != null ? record.getSection3Percent() : "");
             }
         }
         log.debug("вышел из цикла");
@@ -162,7 +212,8 @@ public class ExcelExportService {
 
     private Map<String, WorkSummary> buildWorkSummaryMap(List<ListStudentData> allStudents,
                                                          List<StudentResultData> allStudentResults,
-                                                         List<StudentResultFGData> allStudentFGResults) {
+                                                         List<StudentResultFGData> allStudentFGResults,
+                                                         List<OtherDiagnosticData> allOtherDiagnosticResults) {
         Map<String, WorkSummary> workSummaryMap = new LinkedHashMap<>();
 
         for (ListStudentData student : allStudents) {
@@ -186,6 +237,19 @@ public class ExcelExportService {
             summary.fgRows++;
         }
 
+        for (OtherDiagnosticData diagnostic : allOtherDiagnosticResults) {
+            String key = buildWorkKey(diagnostic.getSchool(), diagnostic.getSubject(), diagnostic.getDate(), diagnostic.getClassName(), diagnostic.getSchoolYear());
+            WorkSummary summary = workSummaryMap.computeIfAbsent(key,
+                    k -> new WorkSummary(diagnostic.getSchool(), diagnostic.getSubject(), diagnostic.getDate(), diagnostic.getClassName(), diagnostic.getSchoolYear()));
+            summary.otherDiagnosticRows++;
+            if (hasText(diagnostic.getAvgPercent())) {
+                summary.classLevel = diagnostic.getAvgPercent();
+            }
+            if (hasText(diagnostic.getCityPercent())) {
+                summary.cityLevel = diagnostic.getCityPercent();
+            }
+        }
+
         return workSummaryMap;
     }
 
@@ -197,7 +261,8 @@ public class ExcelExportService {
         Row headerRow = sheet.createRow(0);
         String[] headers = {
                 "Школа", "Предмет", "Дата", "Учебный год", "Класс",
-                "Строк в листе детей", "Строк в результатах", "Строк в ФГ"
+                "Уровень класса", "Уровень города",
+                "Строк в листе детей", "Строк в результатах", "Строк в ФГ", "Строк в других диагностиках"
         };
 
         for (int i = 0; i < headers.length; i++) {
@@ -213,10 +278,13 @@ public class ExcelExportService {
             row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
             row.createCell(2).setCellValue(valueOrEmpty(summary.date));
             row.createCell(3).setCellValue(valueOrEmpty(summary.schoolYear));
-            row.createCell(4).setCellValue(valueOrEmpty(summary.className));
-            row.createCell(5).setCellValue(summary.childSheetRows);
-            row.createCell(6).setCellValue(summary.resultRows);
-            row.createCell(7).setCellValue(summary.fgRows);
+            row.createCell(4).setCellValue(normalizeClassName(summary.className));
+            row.createCell(5).setCellValue(valueOrEmpty(summary.classLevel));
+            row.createCell(6).setCellValue(valueOrEmpty(summary.cityLevel));
+            row.createCell(7).setCellValue(summary.childSheetRows);
+            row.createCell(8).setCellValue(summary.resultRows);
+            row.createCell(9).setCellValue(summary.fgRows);
+            row.createCell(10).setCellValue(summary.otherDiagnosticRows);
         }
 
         finalizeSheet(sheet, headers.length, rowNum);
@@ -230,7 +298,8 @@ public class ExcelExportService {
         Row headerRow = sheet.createRow(0);
         String[] headers = {
                 "Школа", "Предмет", "Дата", "Учебный год", "Класс", "Проблема",
-                "Строк в листе детей", "Строк в результатах", "Строк в ФГ"
+                "Уровень класса", "Уровень города",
+                "Строк в листе детей", "Строк в результатах", "Строк в ФГ", "Строк в других диагностиках"
         };
 
         for (int i = 0; i < headers.length; i++) {
@@ -251,11 +320,14 @@ public class ExcelExportService {
             row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
             row.createCell(2).setCellValue(valueOrEmpty(summary.date));
             row.createCell(3).setCellValue(valueOrEmpty(summary.schoolYear));
-            row.createCell(4).setCellValue(valueOrEmpty(summary.className));
+            row.createCell(4).setCellValue(normalizeClassName(summary.className));
             row.createCell(5).setCellValue(String.join("; ", problems));
-            row.createCell(6).setCellValue(summary.childSheetRows);
-            row.createCell(7).setCellValue(summary.resultRows);
-            row.createCell(8).setCellValue(summary.fgRows);
+            row.createCell(6).setCellValue(valueOrEmpty(summary.classLevel));
+            row.createCell(7).setCellValue(valueOrEmpty(summary.cityLevel));
+            row.createCell(8).setCellValue(summary.childSheetRows);
+            row.createCell(9).setCellValue(summary.resultRows);
+            row.createCell(10).setCellValue(summary.fgRows);
+            row.createCell(11).setCellValue(summary.otherDiagnosticRows);
         }
 
         finalizeSheet(sheet, headers.length, rowNum);
@@ -280,8 +352,15 @@ public class ExcelExportService {
         if (summary.childSheetRows == 0 && (summary.resultRows > 0 || summary.fgRows > 0)) {
             problems.add("Не загружен лист с данными детей");
         }
+        if (summary.otherDiagnosticRows == 0) {
+            problems.add("Файл других диагностик не обработан для данной работы");
+        }
 
         return problems;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private String buildWorkKey(String school, String subject, String date, String className, String schoolYear) {
@@ -297,6 +376,17 @@ public class ExcelExportService {
         return value != null ? value : "";
     }
 
+    private String normalizeClassName(String className) {
+        if (className == null) {
+            return "";
+        }
+        String normalized = className.trim().toUpperCase().replace('Ё', 'Е');
+        if (normalized.matches("^\\d+[А-ЯЕ]$")) {
+            return normalized.replaceAll("^(\\d+)([А-ЯЕ])$", "$1-$2");
+        }
+        return normalized;
+    }
+
     private static class WorkSummary {
         private final String school;
         private final String subject;
@@ -306,6 +396,9 @@ public class ExcelExportService {
         private int childSheetRows;
         private int resultRows;
         private int fgRows;
+        private int otherDiagnosticRows;
+        private String classLevel;
+        private String cityLevel;
 
         private WorkSummary(String school, String subject, String date, String className, String schoolYear) {
             this.school = school;
