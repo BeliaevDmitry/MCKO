@@ -783,7 +783,7 @@ public class GeneralService {
 
                     } catch (ProcessingException e) {
                         totalFailed++;
-                        log.error("Файл {} не обработан: {}", path.getFileName(), e.getMessage());
+                        log.error("Файл {} не обработан. Причина парсинга: {}", path.getFileName(), e.getMessage(), e);
                     } catch (Exception e) {
                         totalFailed++;
                         log.error("Критическая ошибка при обработке файла {}: {}", path, e.getMessage(), e);

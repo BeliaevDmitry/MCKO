@@ -60,10 +60,10 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
     }
 
     private String extractDate(String text) {
-        Pattern pattern = Pattern.compile("Дата:\\s*([0-9\\-]+\\s+[а-я]+\\s+\\d{4}г\\.?)");
+        Pattern pattern = Pattern.compile("Дата:\\s*(.+?)(?=\\s+Округ:|\\s+Предмет:|\\r|\\n|$)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
-            return matcher.group(1);
+            return matcher.group(1).trim();
         }
         return "дата не определена";
     }
@@ -87,10 +87,10 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
     }
 
     private String extractSubject(String text) {
-        Pattern pattern = Pattern.compile("Предмет:\\s*([А-Яа-я\\s]+)");
+        Pattern pattern = Pattern.compile("Предмет:\\s*([^\\r\\n]+)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
-            return matcher.group(1).trim();
+            return normalizeSubject(matcher.group(1));
         }
         return "не указан";
     }
@@ -121,7 +121,7 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
     private void validateRequiredFields(OtherDiagnosticData data, Path filePath) {
         List<String> missingFields = new ArrayList<>();
 
-        if (!hasText(data.getDate()) || "дата не определена".equalsIgnoreCase(data.getDate())) {
+        if (!DateNormalizerUtil.isValidDate(data.getDate())) {
             missingFields.add("дата");
         }
         if (!hasText(data.getClassName()) || "не указан".equalsIgnoreCase(data.getClassName())) {
@@ -135,11 +135,32 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
         }
 
         if (!missingFields.isEmpty()) {
+            log.warn(
+                    "Неудачный парсинг файла {}. Причина: {}. Извлечено: date='{}', class='{}', subject='{}', avg='{}', city='{}'",
+                    filePath.getFileName(),
+                    String.join(", ", missingFields),
+                    data.getDate(),
+                    data.getClassName(),
+                    data.getSubject(),
+                    data.getAvgPercent(),
+                    data.getCityPercent()
+            );
             throw new ProcessingException(
                     "Файл не прошел валидацию, отсутствуют обязательные поля: " +
                             String.join(", ", missingFields) + " (" + filePath.getFileName() + ")"
             );
         }
+    }
+
+    private String normalizeSubject(String rawSubject) {
+        if (!hasText(rawSubject)) {
+            return "не указан";
+        }
+
+        return rawSubject
+                .replaceAll("(?i)\\bокруг\\b.*$", "")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private boolean hasText(String value) {
