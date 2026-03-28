@@ -440,6 +440,9 @@ public class GeneralService {
                 continue;
             }
 
+            List<OtherDiagnosticData> allOtherDiagnosticResults = otherDiagnosticDataRepository.findBySchool(schoolName);
+            log.debug("длина allOtherDiagnosticResults {}", allOtherDiagnosticResults.size());
+
             // Создаем Map для быстрого поиска результатов по ключам
             Map<String, StudentResultData> resultDataMap = allStudentResults.stream()
                     .filter(result -> hasText(result.getCode()))
@@ -557,7 +560,8 @@ public class GeneralService {
                     combinedResults,
                     allStudents,
                     allStudentResults,
-                    allStudentFGResults
+                    allStudentFGResults,
+                    allOtherDiagnosticResults
             );
 
             // Сохраняем
@@ -686,6 +690,7 @@ public class GeneralService {
                         List<OtherDiagnosticData> dataList = otherDiagnosticParserService.extractDiagnosticData(path);
 
                         if (!dataList.isEmpty()) {
+                            applySchoolNameToOtherDiagnostics(dataList, schoolName);
                             // Сохраняем пакетами если нужно
                             if (AppConfig.BATCH_SIZE > 0 && dataList.size() > AppConfig.BATCH_SIZE) {
                                 saveInBatchesOtherDiagnostic(dataList, AppConfig.BATCH_SIZE);
@@ -749,6 +754,12 @@ public class GeneralService {
             List<OtherDiagnosticData> batch = dataList.subList(i, end);
             otherDiagnosticDataRepository.saveAll(batch);
             log.debug("Сохранен пакет {}-{} из {}", i + 1, end, dataList.size());
+        }
+    }
+
+    private void applySchoolNameToOtherDiagnostics(List<OtherDiagnosticData> dataList, String schoolName) {
+        for (OtherDiagnosticData data : dataList) {
+            data.setSchool(schoolName);
         }
     }
 }
