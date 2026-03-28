@@ -92,12 +92,27 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
         if (matcher.find()) {
             return normalizeSubject(matcher.group(1));
         }
+
+        // Fallback для шапки без слова "Предмет:"
+        // Пример: "Дата: 8-9 ноября 2023 года Читательская грамотность Округ: ..."
+        Pattern fallbackPattern = Pattern.compile(
+                "Дата:\\s*.+?\\bгода\\b\\s+(.+?)\\s+Округ:",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        );
+        Matcher fallbackMatcher = fallbackPattern.matcher(text);
+        if (fallbackMatcher.find()) {
+            return normalizeSubject(fallbackMatcher.group(1));
+        }
+
         return "не указан";
     }
 
     private void setAveragePercents(OtherDiagnosticData data, String text) {
         // Ищем два процента: "Средний % выполнения диагн. работы: 27% 38%"
-        Pattern patternDouble = Pattern.compile("Средний\\s+%\\s+выполнения\\s+диагн\\.\\s+работы:\\s*(\\d+)%\\s*(\\d+)%");
+        Pattern patternDouble = Pattern.compile(
+                "Средний\\s+%\\s+выполнения\\s+(?:диагн\\.\\s+работы|теста):\\s*(\\d+)%\\s*(\\d+)%",
+                Pattern.CASE_INSENSITIVE
+        );
         Matcher matcherDouble = patternDouble.matcher(text);
         if (matcherDouble.find()) {
             data.setAvgPercent(matcherDouble.group(1) + "%");
@@ -106,7 +121,10 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
         }
 
         // Если только один процент
-        Pattern patternSingle = Pattern.compile("Средний\\s+%\\s+выполнения\\s+диагн\\.\\s+работы:\\s*(\\d+)%");
+        Pattern patternSingle = Pattern.compile(
+                "Средний\\s+%\\s+выполнения\\s+(?:диагн\\.\\s+работы|теста):\\s*(\\d+)%",
+                Pattern.CASE_INSENSITIVE
+        );
         Matcher matcherSingle = patternSingle.matcher(text);
         if (matcherSingle.find()) {
             data.setAvgPercent(matcherSingle.group(1) + "%");
