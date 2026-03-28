@@ -50,4 +50,10 @@ public class StudentResultFGData {
 
      @Column(name = "school_year", length = 9)
      private String schoolYear;
+
+     @Column(name = "city_comparison", length = 20)
+     private String cityComparison; // ниже, равно, выше, неизвестно
+
+     @Column(name = "city_percent")
+     private Integer cityPercent;   // городской процент выполнения (например, 55)
 }

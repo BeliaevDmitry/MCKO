@@ -3,7 +3,7 @@ package org.school.MckoReport.MckoCompleks;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.MckoReport.MckoCompleks.Config.AppConfig;
-import org.school.MckoReport.MckoCompleks.service.GeneralService;
+import org.school.MckoReport.MckoCompleks.service.orchestration.GeneralService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -27,6 +27,7 @@ public class Main implements CommandLineRunner {
             generalService.processListCod();
             generalService.processFGResult();
             generalService.processResult();
+            generalService.processOtherDiagnostics();
             generalService.createSchoolReports();
             log.info("✅ Обработка успешно завершена!");
         } catch (Exception e) {

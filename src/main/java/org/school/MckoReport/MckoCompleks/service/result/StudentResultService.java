@@ -1,4 +1,4 @@
-package org.school.MckoReport.MckoCompleks.service;
+package org.school.MckoReport.MckoCompleks.service.result;
 
 import org.school.MckoReport.MckoCompleks.model.StudentResultData;
 import org.school.MckoReport.MckoCompleks.util.TaskScoresConverter;

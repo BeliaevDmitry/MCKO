@@ -1,8 +1,8 @@
-package org.school.MckoReport.MckoCompleks.service.impl;
+package org.school.MckoReport.MckoCompleks.service.file;
 
 import lombok.extern.slf4j.Slf4j;
 import org.school.MckoReport.MckoCompleks.model.FileCategory;
-import org.school.MckoReport.MckoCompleks.service.FindFilesService;
+import org.school.MckoReport.MckoCompleks.service.file.FindFilesService;
 
 import java.io.FileInputStream;
 import java.io.InputStream;

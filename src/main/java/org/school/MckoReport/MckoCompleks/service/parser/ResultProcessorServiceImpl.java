@@ -1,10 +1,10 @@
-package org.school.MckoReport.MckoCompleks.service.impl;
+package org.school.MckoReport.MckoCompleks.service.parser;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.school.MckoReport.MckoCompleks.model.StudentResultData;
-import org.school.MckoReport.MckoCompleks.service.ResultProcessorService;
+import org.school.MckoReport.MckoCompleks.service.parser.ResultProcessorService;
 import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
 import org.school.MckoReport.MckoCompleks.util.TaskScoresConverter;
 import org.springframework.stereotype.Service;
