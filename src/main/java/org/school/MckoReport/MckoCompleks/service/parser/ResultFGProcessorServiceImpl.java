@@ -3,6 +3,7 @@ package org.school.MckoReport.MckoCompleks.service.parser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.school.MckoReport.MckoCompleks.expextion.ProcessingException;
 import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
 import org.school.MckoReport.MckoCompleks.service.parser.ResultFGProcessorService;
 import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
@@ -38,6 +39,8 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
             String school = headerInfo.get("school");
             date = DateNormalizerUtil.normalizeDate(date);
 
+            validateHeader(path, date, subject, className);
+
             List<StudentResultFGData> studentResults = extractStudentResults(text,
                     className, subject, date, school);
 
@@ -70,9 +73,30 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
             allResults.addAll(studentResults);
 
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new ProcessingException("Ошибка чтения PDF ФГ: " + path.getFileName(), e);
         }
         return allResults;
+    }
+
+    private void validateHeader(Path path, String date, String subject, String className) {
+        List<String> missing = new ArrayList<>();
+        if (!DateNormalizerUtil.isValidDate(date)) {
+            missing.add("дата");
+        }
+        if (subject == null || subject.trim().isEmpty()) {
+            missing.add("предмет");
+        }
+        if (className == null || className.trim().isEmpty()) {
+            missing.add("класс");
+        }
+
+        if (!missing.isEmpty()) {
+            throw new ProcessingException(
+                    "Файл ФГ не прошел валидацию: " +
+                            String.join(", ", missing) +
+                            " (" + path.getFileName() + ")"
+            );
+        }
     }
 
     private static Map<String, String> extractHeaderInfo(String text) {

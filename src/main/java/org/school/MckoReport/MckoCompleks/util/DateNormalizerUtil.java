@@ -539,12 +539,45 @@ public class DateNormalizerUtil {
     private static String cleanDateText(String text) {
         if (text == null) return "";
 
-        return text
+        String cleaned = text
                 .split("(?i)\\s*(?:класс|class|дата|date)\\s*:")[0]
                 .replaceAll("(?i)^\\s*(?:дата|date)\\s*:?\\s*", "")
+                .replaceAll("(?i)\\bгода\\b", "")
                 .replaceAll("[г\\.\\s]+$", "")
+                .replace('–', '-')
+                .replace('—', '-')
                 .replaceAll("\\s+", " ")
                 .trim();
+
+        // Пример: "10-11 ноября 2025" -> берем первую дату диапазона: "10 ноября 2025"
+        Matcher textRangeMatcher = Pattern.compile(
+                "^(\\d{1,2})\\s*-\\s*\\d{1,2}\\s+([а-яА-ЯёЁ]+)\\s+(\\d{4})$"
+        ).matcher(cleaned);
+        if (textRangeMatcher.find()) {
+            return textRangeMatcher.group(1) + " " +
+                    textRangeMatcher.group(2) + " " +
+                    textRangeMatcher.group(3);
+        }
+
+        // Пример: "10-11.11.2025" -> "10.11.2025"
+        Matcher numericRangeMatcher = Pattern.compile(
+                "^(\\d{1,2})\\s*-\\s*\\d{1,2}[\\./-](\\d{1,2})[\\./-](\\d{2,4})$"
+        ).matcher(cleaned);
+        if (numericRangeMatcher.find()) {
+            String year = numericRangeMatcher.group(3);
+            if (year.length() == 2) {
+                year = "20" + year;
+            }
+            return numericRangeMatcher.group(1) + "." + numericRangeMatcher.group(2) + "." + year;
+        }
+
+        // Если в строке есть лишний текст, берём первую найденную дату
+        Matcher explicitDateMatcher = Pattern.compile("(\\d{1,2}[\\./-]\\d{1,2}[\\./-]\\d{2,4})").matcher(cleaned);
+        if (explicitDateMatcher.find()) {
+            return explicitDateMatcher.group(1);
+        }
+
+        return cleaned;
     }
 
     /**
