@@ -56,6 +56,8 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
                     // Проверяем, что есть минимальные данные для сохранения
                     boolean hasMatchKey = hasText(studentData.getCode()) || studentData.getStudentNumber() != null;
                     if (hasText(studentData.getSchool()) &&
+                            hasText(studentData.getSubject()) &&
+                            DateNormalizerUtil.isValidDate(studentData.getDate()) &&
                             studentData.getBall() != null &&
                             hasMatchKey) {
                         allResults.add(studentData);

@@ -466,6 +466,7 @@ public class FindFilesServiceImpl implements FindFilesService {
         Map<String, List<Path>> result = new HashMap<>();
         result.put(FileCategory.FG_PDF_RESULTS.name(), new ArrayList<>());   // PDF с "ФГ"
         result.put(FileCategory.EXCEL_RESULTS.name(), new ArrayList<>());    // Excel файлы
+        result.put(FileCategory.OTHER_DIAGNOSTICS.name(), new ArrayList<>()); // PDF других диагностик (_pm..., не ФГ)
         result.put(FileCategory.OTHER.name(), new ArrayList<>());    // Все остальное
 
         if (pathsEntries == null || pathsEntries.isEmpty()) {
@@ -480,6 +481,7 @@ public class FindFilesServiceImpl implements FindFilesService {
 
         int fgPdfCount = 0;
         int excelCount = 0;
+        int otherDiagnosticsCount = 0;
         int otherCount = 0;
 
         for (Path path : pathsEntries) {
@@ -512,6 +514,10 @@ public class FindFilesServiceImpl implements FindFilesService {
                     result.get(FileCategory.EXCEL_RESULTS.name()).add(path);
                     excelCount++;
                     log.debug("EXCEL: {}", fileName);
+                } else if (isOtherDiagnosticsPdfFile(lowerFileName)) {
+                    result.get(FileCategory.OTHER_DIAGNOSTICS.name()).add(path);
+                    otherDiagnosticsCount++;
+                    log.debug("OTHER_DIAGNOSTICS: {}", fileName);
                 } else {
                     result.get(FileCategory.OTHER.name()).add(path);
                     otherCount++;
@@ -528,6 +534,7 @@ public class FindFilesServiceImpl implements FindFilesService {
         log.info("Классификация завершена:");
         log.info("  FG_PDF файлов: {}", fgPdfCount);
         log.info("  EXCEL файлов: {}", excelCount);
+        log.info("  OTHER_DIAGNOSTICS файлов: {}", otherDiagnosticsCount);
         log.info("  OTHER файлов: {}", otherCount);
 
         // Подробное логирование для категории OTHER
@@ -563,6 +570,10 @@ public class FindFilesServiceImpl implements FindFilesService {
     private boolean isExcelFile(String lowerFileName) {
         return lowerFileName.endsWith(".xlsx") ||
                 lowerFileName.endsWith(".xls");
+    }
+
+    private boolean isOtherDiagnosticsPdfFile(String lowerFileName) {
+        return lowerFileName.endsWith(".pdf");
     }
 
     /**
