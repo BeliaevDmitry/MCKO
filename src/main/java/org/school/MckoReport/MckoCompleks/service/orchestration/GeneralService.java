@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.school.MckoReport.MckoCompleks.Config.AppConfig;
 import org.school.MckoReport.MckoCompleks.dto.CombinedResultData;
+import org.school.MckoReport.MckoCompleks.dto.ProcessingErrorInfo;
 import org.school.MckoReport.MckoCompleks.expextion.ProcessingException;
 import org.school.MckoReport.MckoCompleks.model.*;
 import org.school.MckoReport.MckoCompleks.repository.ListStudentDataRepository;
@@ -18,6 +19,7 @@ import org.school.MckoReport.MckoCompleks.service.parser.ResultProcessorService;
 import org.school.MckoReport.MckoCompleks.service.report.DataCombinationService;
 import org.school.MckoReport.MckoCompleks.service.report.ExcelExportService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.FileOutputStream;
@@ -47,15 +49,18 @@ public class GeneralService {
     private final ExcelExportService excelExportService;
     private final OtherDiagnosticParserService otherDiagnosticParserService;
     private final OtherDiagnosticDataRepository otherDiagnosticDataRepository;
+    private final Map<String, List<ProcessingErrorInfo>> processingErrorsBySchool = new HashMap<>();
 
     public void processListCod() {
         log.info("Начало обработки для {} школ", AppConfig.SCHOOLS.size());
+        processingErrorsBySchool.clear();
 
         int totalProcessed = 0;
         int totalFailed = 0;
         List<Path> successfullyProcessedArchives = new ArrayList<>();
 
         for (String schoolName : AppConfig.SCHOOLS) {
+            processingErrorsBySchool.computeIfAbsent(schoolName, key -> new ArrayList<>());
             try {
                 // 1. Формируем путь для школы
                 String folderPath = AppConfig.FOLDER_PATCH.replace("{школа}", schoolName);
@@ -115,12 +120,19 @@ public class GeneralService {
                     } catch (ProcessingException e) {
                         totalFailed++;
                         log.error("Файл {} не обработан: {}", fileEntry.getEntryPath(), e.getMessage());
+                        registerProcessingError(
+                                schoolName,
+                                Path.of(fileEntry.getEntryPath()),
+                                "CODE_LIST_PARSE",
+                                e.getMessage()
+                        );
                         // Продолжаем с другими файлами
                     }
                 }
 
             } catch (Exception e) {
                 log.error("Ошибка обработки для школы {}: {}", schoolName, e.getMessage(), e);
+                registerProcessingError(schoolName, null, "CODE_LIST_PARSE", e.getMessage());
                 throw new RuntimeException("Ошибка обработки школы " + schoolName, e);
             }
         }
@@ -157,6 +169,7 @@ public class GeneralService {
         List<Path> successfullyProcessed = new ArrayList<>();
 
         for (String schoolName : AppConfig.SCHOOLS) {
+            processingErrorsBySchool.computeIfAbsent(schoolName, key -> new ArrayList<>());
             try {
                 // 1. Формируем путь для школы
                 String folderPath = AppConfig.FOLDER_PATCH.replace("{школа}", schoolName);
@@ -217,12 +230,14 @@ public class GeneralService {
                     } catch (ProcessingException e) {
                         totalFailed++;
                         log.error("Файл {} не обработан: {}", path.getFileName(), e.getMessage());
+                        registerProcessingError(schoolName, path, "FG_PARSE", e.getMessage());
                         // Продолжаем с другими файлами
                     }
                 }
 
             } catch (Exception e) {
                 log.error("Ошибка обработки для школы {}: {}", schoolName, e.getMessage(), e);
+                registerProcessingError(schoolName, null, "FG_PARSE", e.getMessage());
                 throw new RuntimeException("Ошибка обработки школы " + schoolName, e);
             }
         }
@@ -259,6 +274,7 @@ public class GeneralService {
         List<Path> successfullyProcessed = new ArrayList<>();
 
         for (String schoolName : AppConfig.SCHOOLS) {
+            processingErrorsBySchool.computeIfAbsent(schoolName, key -> new ArrayList<>());
             try {
                 // 1. Формируем путь для школы
                 String folderPath = AppConfig.FOLDER_PATCH.replace("{школа}", schoolName);
@@ -318,14 +334,17 @@ public class GeneralService {
                     } catch (ProcessingException e) {
                         totalFailed++;
                         log.error("Файл {} не обработан: {}", path.getFileName(), e.getMessage());
+                        registerProcessingError(schoolName, path, "RESULT_PARSE", e.getMessage());
                         // Продолжаем с другими файлами
                     } catch (Exception e) {
                         totalFailed++;
                         log.error("Критическая ошибка при обработке файла {}", path, e);
+                        registerProcessingError(schoolName, path, "RESULT_PARSE", e.getMessage());
                     }
                 }
             } catch (Exception e) {
                 log.error("Ошибка обработки для школы {}: {}", schoolName, e.getMessage(), e);
+                registerProcessingError(schoolName, null, "RESULT_PARSE", e.getMessage());
                 throw new RuntimeException("Ошибка обработки школы " + schoolName, e);
             }
         }
@@ -440,6 +459,9 @@ public class GeneralService {
                 continue;
             }
 
+            List<OtherDiagnosticData> allOtherDiagnosticResults = otherDiagnosticDataRepository.findBySchool(schoolName);
+            log.debug("длина allOtherDiagnosticResults {}", allOtherDiagnosticResults.size());
+
             // Создаем Map для быстрого поиска результатов по ключам
             Map<String, StudentResultData> resultDataMap = allStudentResults.stream()
                     .filter(result -> hasText(result.getCode()))
@@ -466,6 +488,31 @@ public class GeneralService {
                                     fg.getSubject(), fg.getDate()),
                             fg -> fg,
                             (existing, replacement) -> existing // при дубликатах берем первый
+                    ));
+
+            Map<String, OtherDiagnosticData> otherDiagnosticByKey = allOtherDiagnosticResults.stream()
+                    .collect(Collectors.toMap(
+                            diagnostic -> buildReportWorkKey(
+                                    schoolName,
+                                    diagnostic.getSubject(),
+                                    diagnostic.getDate(),
+                                    diagnostic.getClassName(),
+                                    diagnostic.getSchoolYear()
+                            ),
+                            diagnostic -> diagnostic,
+                            (existing, replacement) -> existing
+                    ));
+
+            Map<String, OtherDiagnosticData> otherDiagnosticByKeyWithoutYear = allOtherDiagnosticResults.stream()
+                    .collect(Collectors.toMap(
+                            diagnostic -> buildReportWorkKeyWithoutYear(
+                                    schoolName,
+                                    diagnostic.getSubject(),
+                                    diagnostic.getDate(),
+                                    diagnostic.getClassName()
+                            ),
+                            diagnostic -> diagnostic,
+                            (existing, replacement) -> existing
                     ));
 
             // Собираем объединенные данные
@@ -536,6 +583,33 @@ public class GeneralService {
                 }
                 combined.setSchoolYear(schoolYear);
 
+                String classNameForLookup = combined.getClassName();
+                OtherDiagnosticData diagnosticData = otherDiagnosticByKey.get(
+                        buildReportWorkKey(
+                                schoolName,
+                                combined.getSubject(),
+                                combined.getDate(),
+                                classNameForLookup,
+                                combined.getSchoolYear()
+                        )
+                );
+
+                if (diagnosticData == null) {
+                    diagnosticData = otherDiagnosticByKeyWithoutYear.get(
+                            buildReportWorkKeyWithoutYear(
+                                    schoolName,
+                                    combined.getSubject(),
+                                    combined.getDate(),
+                                    classNameForLookup
+                            )
+                    );
+                }
+
+                if (diagnosticData != null) {
+                    combined.setClassLevel(diagnosticData.getAvgPercent());
+                    combined.setCityLevel(diagnosticData.getCityPercent());
+                }
+
                 if (fgData != null) {
                     // Копируем данные из StudentResultFGData
                     combined.setOverallPercent(fgData.getOverallPercent());
@@ -553,11 +627,17 @@ public class GeneralService {
 
             log.debug("длина combinedResults перед передачей в генератор эксель {}", combinedResults.size());
             // Создаем Excel
+            List<ProcessingErrorInfo> processingErrors = processingErrorsBySchool.getOrDefault(
+                    schoolName,
+                    Collections.emptyList()
+            );
             byte[] excelBytes = excelExportService.exportToExcel(
                     combinedResults,
                     allStudents,
                     allStudentResults,
-                    allStudentFGResults
+                    allStudentFGResults,
+                    allOtherDiagnosticResults,
+                    processingErrors
             );
 
             // Сохраняем
@@ -607,6 +687,25 @@ public class GeneralService {
         );
     }
 
+    private String buildReportWorkKey(String school, String subject, String date, String className, String schoolYear) {
+        return String.format("%s|%s|%s|%s|%s",
+                school != null ? school : "",
+                subject != null ? subject : "",
+                date != null ? date : "",
+                className != null ? className : "",
+                schoolYear != null ? schoolYear : ""
+        );
+    }
+
+    private String buildReportWorkKeyWithoutYear(String school, String subject, String date, String className) {
+        return String.format("%s|%s|%s|%s",
+                school != null ? school : "",
+                subject != null ? subject : "",
+                date != null ? date : "",
+                className != null ? className : ""
+        );
+    }
+
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }
@@ -652,7 +751,7 @@ public class GeneralService {
     /**
      * Обрабатывает файлы других диагностик (PDF с _pm, не ФГ)
      */
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void processOtherDiagnostics() {
         log.info("Начало обработки других диагностик для {} школ", AppConfig.SCHOOLS.size());
 
@@ -661,6 +760,7 @@ public class GeneralService {
         List<Path> successfullyProcessed = new ArrayList<>();
 
         for (String schoolName : AppConfig.SCHOOLS) {
+            processingErrorsBySchool.computeIfAbsent(schoolName, key -> new ArrayList<>());
             try {
                 // 1. Формируем путь для школы
                 String folderPath = AppConfig.FOLDER_PATCH.replace("{школа}", schoolName);
@@ -686,6 +786,7 @@ public class GeneralService {
                         List<OtherDiagnosticData> dataList = otherDiagnosticParserService.extractDiagnosticData(path);
 
                         if (!dataList.isEmpty()) {
+                            applySchoolNameToOtherDiagnostics(dataList, schoolName);
                             // Сохраняем пакетами если нужно
                             if (AppConfig.BATCH_SIZE > 0 && dataList.size() > AppConfig.BATCH_SIZE) {
                                 saveInBatchesOtherDiagnostic(dataList, AppConfig.BATCH_SIZE);
@@ -707,10 +808,12 @@ public class GeneralService {
 
                     } catch (ProcessingException e) {
                         totalFailed++;
-                        log.error("Файл {} не обработан: {}", path.getFileName(), e.getMessage());
+                        log.error("Файл {} не обработан. Причина парсинга: {}", path.getFileName(), e.getMessage(), e);
+                        registerProcessingError(schoolName, path, "OTHER_DIAGNOSTIC_PARSE", e.getMessage());
                     } catch (Exception e) {
                         totalFailed++;
                         log.error("Критическая ошибка при обработке файла {}: {}", path, e.getMessage(), e);
+                        registerProcessingError(schoolName, path, "OTHER_DIAGNOSTIC_PARSE", e.getMessage());
                     }
                 }
 
@@ -750,5 +853,35 @@ public class GeneralService {
             otherDiagnosticDataRepository.saveAll(batch);
             log.debug("Сохранен пакет {}-{} из {}", i + 1, end, dataList.size());
         }
+    }
+
+    private void applySchoolNameToOtherDiagnostics(List<OtherDiagnosticData> dataList, String schoolName) {
+        for (OtherDiagnosticData data : dataList) {
+            data.setSchool(schoolName);
+        }
+    }
+
+    private void registerProcessingError(String schoolName, Path filePath, String stage, String reason) {
+        List<ProcessingErrorInfo> errors = processingErrorsBySchool.computeIfAbsent(schoolName, key -> new ArrayList<>());
+        errors.add(
+                ProcessingErrorInfo.builder()
+                        .school(schoolName)
+                        .fileName(filePath != null ? filePath.getFileName().toString() : "")
+                        .stage(stage)
+                        .reason(reason)
+                        .rawDate(extractRawDate(reason))
+                        .build()
+        );
+    }
+
+    private String extractRawDate(String reason) {
+        if (reason == null) {
+            return "";
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("rawDate='([^']*)'").matcher(reason);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return "";
     }
 }
