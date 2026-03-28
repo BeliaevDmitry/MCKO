@@ -24,34 +24,50 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
 
 
     @Override
-    public List<StudentResultFGData> extractStudentsResultFG(Path patch) {
+    public List<StudentResultFGData> extractStudentsResultFG(Path path) {
         List<StudentResultFGData> allResults = new ArrayList<>();
 
-        try (PDDocument document = PDDocument.load(patch.toFile())) {
+        try (PDDocument document = PDDocument.load(path.toFile())) {
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
 
-
-
-            // Извлекаем общую информацию из заголовка
             Map<String, String> headerInfo = extractHeaderInfo(text);
             String date = headerInfo.get("date");
             String subject = headerInfo.get("subject");
             String className = normalizeClassName(headerInfo.get("className"));
-            log.debug("после нормализации  className  {}", className);
             String school = headerInfo.get("school");
-            log.debug("// Извлекаем общую информацию из заголовка ФГ String date {}" +
-                    "адрес файла {}", date, patch);
             date = DateNormalizerUtil.normalizeDate(date);
-            log.debug("после нормализации date {}", date);
 
-            // Извлекаем данные студентов
             List<StudentResultFGData> studentResults = extractStudentResults(text,
                     className, subject, date, school);
 
-            log.info("  Найдено записей студентов: " + studentResults.size());
-            allResults.addAll(studentResults);
+            Integer cityPercent = extractCityPercent(text);
+            if (cityPercent != null) {
+                for (StudentResultFGData student : studentResults) {
+                    student.setCityPercent(cityPercent);
+                    String overallStr = student.getOverallPercent();
+                    try {
+                        double studentPercent = Double.parseDouble(overallStr);
+                        if (Math.abs(studentPercent - cityPercent) < 0.01) {
+                            student.setCityComparison("равно");
+                        } else if (studentPercent > cityPercent) {
+                            student.setCityComparison("выше");
+                        } else {
+                            student.setCityComparison("ниже");
+                        }
+                    } catch (NumberFormatException e) {
+                        student.setCityComparison("неизвестно");
+                    }
+                }
+            } else {
+                studentResults.forEach(s -> {
+                    s.setCityComparison("неизвестно");
+                    s.setCityPercent(null);
+                });
+            }
 
+            log.info("Найдено записей студентов: {}", studentResults.size());
+            allResults.addAll(studentResults);
 
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -403,5 +419,18 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
         }
 
         return results;
+    }
+
+    private Integer extractCityPercent(String text) {
+        Pattern pattern = Pattern.compile("Средний\\s+%\\s+выполнения\\s+теста:\\s*(\\d+)%\\s*(\\d+)%");
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            try {
+                return Integer.parseInt(matcher.group(2));
+            } catch (NumberFormatException e) {
+                log.warn("Не удалось распарсить городской процент: {}", matcher.group(2));
+            }
+        }
+        return null;
     }
 }

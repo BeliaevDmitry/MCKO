@@ -27,6 +27,7 @@ public class Main implements CommandLineRunner {
             generalService.processListCod();
             generalService.processFGResult();
             generalService.processResult();
+            generalService.processOtherDiagnostics();
             generalService.createSchoolReports();
             log.info("✅ Обработка успешно завершена!");
         } catch (Exception e) {

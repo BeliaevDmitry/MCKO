@@ -7,10 +7,12 @@ import org.school.MckoReport.MckoCompleks.dto.CombinedResultData;
 import org.school.MckoReport.MckoCompleks.expextion.ProcessingException;
 import org.school.MckoReport.MckoCompleks.model.*;
 import org.school.MckoReport.MckoCompleks.repository.ListStudentDataRepository;
+import org.school.MckoReport.MckoCompleks.repository.OtherDiagnosticDataRepository;
 import org.school.MckoReport.MckoCompleks.repository.StudentResultDataRepository;
 import org.school.MckoReport.MckoCompleks.repository.StudentResultFGDataRepository;
 import org.school.MckoReport.MckoCompleks.service.file.FindFilesService;
 import org.school.MckoReport.MckoCompleks.service.parser.ListProcessingService;
+import org.school.MckoReport.MckoCompleks.service.parser.OtherDiagnosticParserService;
 import org.school.MckoReport.MckoCompleks.service.parser.ResultFGProcessorService;
 import org.school.MckoReport.MckoCompleks.service.parser.ResultProcessorService;
 import org.school.MckoReport.MckoCompleks.service.report.DataCombinationService;
@@ -43,6 +45,8 @@ public class GeneralService {
     private final ResultProcessorService resultProcessorService;
     private final DataCombinationService dataCombinationService;
     private final ExcelExportService excelExportService;
+    private final OtherDiagnosticParserService otherDiagnosticParserService;
+    private final OtherDiagnosticDataRepository otherDiagnosticDataRepository;
 
     public void processListCod() {
         log.info("Начало обработки для {} школ", AppConfig.SCHOOLS.size());
@@ -643,5 +647,108 @@ public class GeneralService {
         return text.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_")
                 .toLowerCase()
                 .replaceAll("_+", "_");
+    }
+
+    /**
+     * Обрабатывает файлы других диагностик (PDF с _pm, не ФГ)
+     */
+    @Transactional
+    public void processOtherDiagnostics() {
+        log.info("Начало обработки других диагностик для {} школ", AppConfig.SCHOOLS.size());
+
+        int totalProcessed = 0;
+        int totalFailed = 0;
+        List<Path> successfullyProcessed = new ArrayList<>();
+
+        for (String schoolName : AppConfig.SCHOOLS) {
+            try {
+                // 1. Формируем путь для школы
+                String folderPath = AppConfig.FOLDER_PATCH.replace("{школа}", schoolName);
+                log.info("Обработка школы: {} (путь: {})", schoolName, folderPath);
+
+                // 2. Получаем список обычных файлов (не архивы)
+                List<Path> filesList = findFilesService.findRegularFiles(Path.of(folderPath));
+                log.info("Найдено файлов: {}", filesList.size());
+
+                if (filesList.isEmpty()) {
+                    log.warn("Для школы {} не найдено файлов", schoolName);
+                    continue;
+                }
+
+                // 3. Классифицируем файлы
+                Map<String, List<Path>> dispatch = findFilesService.dispatchProcessing(filesList);
+                List<Path> diagnosticFiles = dispatch.getOrDefault(FileCategory.OTHER_DIAGNOSTICS.name(), Collections.emptyList());
+                log.info("Файлов других диагностик: {}", diagnosticFiles.size());
+
+                // 4. Обрабатываем каждый файл
+                for (Path path : diagnosticFiles) {
+                    try {
+                        List<OtherDiagnosticData> dataList = otherDiagnosticParserService.extractDiagnosticData(path);
+
+                        if (!dataList.isEmpty()) {
+                            // Сохраняем пакетами если нужно
+                            if (AppConfig.BATCH_SIZE > 0 && dataList.size() > AppConfig.BATCH_SIZE) {
+                                saveInBatchesOtherDiagnostic(dataList, AppConfig.BATCH_SIZE);
+                            } else {
+                                otherDiagnosticDataRepository.saveAll(dataList);
+                            }
+
+                            totalProcessed += dataList.size();
+
+                            if (!successfullyProcessed.contains(path)) {
+                                successfullyProcessed.add(path);
+                            }
+
+                            log.info("Файл {} обработан успешно, сохранено {} записей",
+                                    path.getFileName(), dataList.size());
+                        } else {
+                            log.warn("Файл {} не содержит данных о диагностике", path.getFileName());
+                        }
+
+                    } catch (ProcessingException e) {
+                        totalFailed++;
+                        log.error("Файл {} не обработан: {}", path.getFileName(), e.getMessage());
+                    } catch (Exception e) {
+                        totalFailed++;
+                        log.error("Критическая ошибка при обработке файла {}: {}", path, e.getMessage(), e);
+                    }
+                }
+
+            } catch (Exception e) {
+                log.error("Ошибка обработки для школы {}: {}", schoolName, e.getMessage(), e);
+                // Не бросаем исключение, чтобы продолжить обработку других школ
+            }
+        }
+
+        // 5. Перемещаем если включено
+        if (AppConfig.ENABLE_MOVE && !successfullyProcessed.isEmpty()) {
+            try {
+                boolean moved = findFilesService.moveToSubjectFolder(successfullyProcessed);
+                if (moved) {
+                    log.info("✅ Успешно перемещено {} файлов других диагностик", successfullyProcessed.size());
+                } else {
+                    log.warn("⚠ Не все файлы других диагностик удалось переместить");
+                }
+            } catch (Exception e) {
+                log.error("❌ Ошибка при перемещении файлов других диагностик: {}", e.getMessage());
+            }
+        }
+
+        log.info("=".repeat(50));
+        log.info("📊 ИТОГИ ОБРАБОТКИ ДРУГИХ ДИАГНОСТИК:");
+        log.info("  🏫 Обработано школ: {}", AppConfig.SCHOOLS.size());
+        log.info("  ✅ Успешных записей: {}", totalProcessed);
+        log.info("  ❌ Ошибок: {}", totalFailed);
+        log.info("  📦 Перемещено файлов: {}", successfullyProcessed.size());
+        log.info("=".repeat(50));
+    }
+
+    private void saveInBatchesOtherDiagnostic(List<OtherDiagnosticData> dataList, int batchSize) {
+        for (int i = 0; i < dataList.size(); i += batchSize) {
+            int end = Math.min(dataList.size(), i + batchSize);
+            List<OtherDiagnosticData> batch = dataList.subList(i, end);
+            otherDiagnosticDataRepository.saveAll(batch);
+            log.debug("Сохранен пакет {}-{} из {}", i + 1, end, dataList.size());
+        }
     }
 }
