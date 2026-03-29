@@ -18,8 +18,9 @@ import java.util.regex.Pattern;
 
 @Slf4j
 @Service
-public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserService {
+public class OtherDiagnosticMgmParserServiceImpl implements OtherDiagnosticMgmParserService {
 
+    @Override
     public List<OtherDiagnosticData> extractDiagnosticData(Path filePath) {
         List<OtherDiagnosticData> results = new ArrayList<>();
 
@@ -27,13 +28,13 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
 
-            String date = extractDate(text);
-            String normalizedDate = DateNormalizerUtil.normalizeDate(date);
+            String rawDate = extractDate(text);
+            String normalizedDate = DateNormalizerUtil.normalizeDate(rawDate);
             String schoolYear = DateNormalizerUtil.calculateSchoolYear(normalizedDate);
 
             String school = extractSchool(text);
             String className = extractClass(text);
-            String subject = extractSubject(text);
+            String subject = extractSubjectForMgm(text);
 
             OtherDiagnosticData data = OtherDiagnosticData.builder()
                     .school(school)
@@ -45,28 +46,32 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
                     .build();
 
             setAveragePercents(data, text);
-            validateRequiredFields(data, filePath, date);
-
+            validateRequiredFields(data, filePath, rawDate);
             results.add(data);
 
-            log.info("Извлечены данные: школа={}, класс={}, предмет={}, дата={}, %={}, город%={}",
-                    school, className, subject, normalizedDate, data.getAvgPercent(), data.getCityPercent());
-
         } catch (IOException e) {
-            log.error("Ошибка при обработке файла {}: {}", filePath, e.getMessage());
-            throw new ProcessingException("Не удалось обработать PDF: " + filePath, e);
+            throw new ProcessingException("Не удалось обработать PDF МГМ: " + filePath, e);
         }
 
         return results;
     }
 
     private String extractDate(String text) {
-        Pattern pattern = Pattern.compile("Дата:\\s*(.+?)(?=\\s+Округ:|\\s+Предмет:|\\r|\\n|$)", Pattern.CASE_INSENSITIVE);
+        Pattern pattern = Pattern.compile("Дата:\\s*(.+?)(?=\\s+Округ:|\\s+Школа:|\\r|\\n|$)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
             return matcher.group(1).trim();
         }
         return "дата не определена";
+    }
+
+    private String extractSubjectForMgm(String text) {
+        Pattern pattern = Pattern.compile("Дата:\\s*.+?\\bгода\\b\\s+(.+?)\\s+Округ:", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return SubjectNormalizerUtil.normalize(matcher.group(1));
+        }
+        return "не указан";
     }
 
     private String extractSchool(String text) {
@@ -82,38 +87,17 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
         Pattern pattern = Pattern.compile("Класс:\\s*(\\d+[А-Яа-яЁё]?)");
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
-            return normalizeClassName(matcher.group(1));
+            String value = matcher.group(1).trim().toUpperCase();
+            if (value.matches("^\\d+[А-ЯЁ]$")) {
+                return value.replaceAll("^(\\d+)([А-ЯЁ])$", "$1-$2");
+            }
+            return value;
         }
-        return "не указан";
-    }
-
-    private String extractSubject(String text) {
-        Pattern pattern = Pattern.compile("Предмет:\\s*([^\\r\\n]+)", Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(text);
-        if (matcher.find()) {
-            return normalizeSubject(matcher.group(1));
-        }
-
-        // Fallback для шапки без слова "Предмет:"
-        // Пример: "Дата: 8-9 ноября 2023 года Читательская грамотность Округ: ..."
-        Pattern fallbackPattern = Pattern.compile(
-                "Дата:\\s*.+?\\bгода\\b\\s+(.+?)\\s+Округ:",
-                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-        );
-        Matcher fallbackMatcher = fallbackPattern.matcher(text);
-        if (fallbackMatcher.find()) {
-            return normalizeSubject(fallbackMatcher.group(1));
-        }
-
         return "не указан";
     }
 
     private void setAveragePercents(OtherDiagnosticData data, String text) {
-        // Ищем два процента: "Средний % выполнения диагн. работы: 27% 38%"
-        Pattern patternDouble = Pattern.compile(
-                "Средний\\s+%\\s+выполнения\\s+(?:диагн\\.\\s+работы|теста):\\s*(\\d+)%\\s*(\\d+)%",
-                Pattern.CASE_INSENSITIVE
-        );
+        Pattern patternDouble = Pattern.compile("Средний\\s+%\\s+выполнения\\s+(?:диагн\\.\\s+работы|теста):\\s*(\\d+)%\\s*(\\d+)%", Pattern.CASE_INSENSITIVE);
         Matcher matcherDouble = patternDouble.matcher(text);
         if (matcherDouble.find()) {
             data.setAvgPercent(matcherDouble.group(1) + "%");
@@ -121,11 +105,7 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
             return;
         }
 
-        // Если только один процент
-        Pattern patternSingle = Pattern.compile(
-                "Средний\\s+%\\s+выполнения\\s+(?:диагн\\.\\s+работы|теста):\\s*(\\d+)%",
-                Pattern.CASE_INSENSITIVE
-        );
+        Pattern patternSingle = Pattern.compile("Средний\\s+%\\s+выполнения\\s+(?:диагн\\.\\s+работы|теста):\\s*(\\d+)%", Pattern.CASE_INSENSITIVE);
         Matcher matcherSingle = patternSingle.matcher(text);
         if (matcherSingle.find()) {
             data.setAvgPercent(matcherSingle.group(1) + "%");
@@ -139,7 +119,6 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
 
     private void validateRequiredFields(OtherDiagnosticData data, Path filePath, String rawDate) {
         List<String> missingFields = new ArrayList<>();
-
         if (!DateNormalizerUtil.isValidDate(data.getDate())) {
             missingFields.add("дата");
         }
@@ -152,43 +131,13 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
         if (!hasText(data.getAvgPercent()) || "не определен".equalsIgnoreCase(data.getAvgPercent())) {
             missingFields.add("средний % выполнения");
         }
-
         if (!missingFields.isEmpty()) {
-            log.warn(
-                    "Неудачный парсинг файла {}. Причина: {}. Извлечено: date='{}', class='{}', subject='{}', avg='{}', city='{}'",
-                    filePath.getFileName(),
-                    String.join(", ", missingFields),
-                    data.getDate(),
-                    data.getClassName(),
-                    data.getSubject(),
-                    data.getAvgPercent(),
-                    data.getCityPercent()
-            );
             throw new ProcessingException(
-                    "Файл не прошел валидацию, отсутствуют обязательные поля: " +
+                    "Файл МГМ не прошел валидацию, отсутствуют обязательные поля: " +
                             String.join(", ", missingFields) +
                             " (" + filePath.getFileName() + "); rawDate='" + rawDate + "'"
             );
         }
-    }
-
-    private String normalizeSubject(String rawSubject) {
-        if (!hasText(rawSubject)) {
-            return "не указан";
-        }
-        return SubjectNormalizerUtil.normalize(rawSubject);
-    }
-
-    private String normalizeClassName(String className) {
-        if (!hasText(className)) {
-            return "не указан";
-        }
-
-        String normalized = className.trim().toUpperCase();
-        if (normalized.matches("^\\d+[А-ЯЁ]$")) {
-            return normalized.replaceAll("^(\\d+)([А-ЯЁ])$", "$1-$2");
-        }
-        return normalized;
     }
 
     private boolean hasText(String value) {
