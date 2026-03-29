@@ -8,6 +8,7 @@ import org.school.MckoReport.MckoCompleks.model.ArchiveEntry;
 import org.school.MckoReport.MckoCompleks.model.ListStudentData;
 import org.school.MckoReport.MckoCompleks.service.parser.ListProcessingService;
 import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
+import org.school.MckoReport.MckoCompleks.util.SubjectNormalizerUtil;
 import org.springframework.stereotype.Service;
 
 
@@ -333,7 +334,8 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                             // Проверяем, что это не заголовок таблицы
                             if (!subjectLine.contains("ФИО") &&
                                     !subjectLine.contains("Код")) {
-                                metadata.put("subject", subjectLine);
+                                String cleanedSubject = trimSubjectAfterDistrict(subjectLine);
+                                metadata.put("subject", SubjectNormalizerUtil.normalize(cleanedSubject));
                             }
                         }
                         break;
@@ -344,6 +346,22 @@ public class ListProcessingServiceImpl implements ListProcessingService {
         }
 
         return metadata;
+    }
+
+    /**
+     * Явно отрезает от предмета блок "Округ: ..." и всё, что идет после него.
+     */
+    private String trimSubjectAfterDistrict(String subjectLine) {
+        if (subjectLine == null) {
+            return "";
+        }
+
+        String normalizedLine = subjectLine.replaceAll("[\\r\\n]+", " ").trim();
+        int districtPosition = normalizedLine.toLowerCase(Locale.ROOT).indexOf("округ");
+        if (districtPosition >= 0) {
+            return normalizedLine.substring(0, districtPosition).trim();
+        }
+        return normalizedLine;
     }
 
     private String extractDateFromFileName(String fileName) {
