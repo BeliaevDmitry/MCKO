@@ -88,24 +88,53 @@ public class OtherDiagnosticParserServiceImpl implements OtherDiagnosticParserSe
     }
 
     private String extractSubject(String text) {
+        // 1. Явный "Предмет:"
         Pattern pattern = Pattern.compile("Предмет:\\s*([^\\r\\n]+)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
-            return normalizeSubject(matcher.group(1));
+            return normalizeSubject(cleanSubject(matcher.group(1)));
         }
 
-        // Fallback для шапки без слова "Предмет:"
-        // Пример: "Дата: 8-9 ноября 2023 года Читательская грамотность Округ: ..."
+        // 2. Fallback: после "года" до ближайшего маркера или конца строки
+        //    Ищем "года", затем захватываем всё до первого из: "Округ:", "Школа:", "Класс:", или конца строки.
         Pattern fallbackPattern = Pattern.compile(
-                "Дата:\\s*.+?\\bгода\\b\\s+(.+?)\\s+Округ:",
+                "\\bгода\\b\\s+(.+?)(?=\\s+(?:Округ|Школа|Класс):|\\r?\\n|$)",
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL
         );
         Matcher fallbackMatcher = fallbackPattern.matcher(text);
         if (fallbackMatcher.find()) {
-            return normalizeSubject(fallbackMatcher.group(1));
+            String raw = fallbackMatcher.group(1).trim();
+            return normalizeSubject(cleanSubject(raw));
         }
 
         return "не указан";
+    }
+
+    /**
+     * Обрезает строку по первому вхождению маркеров "Округ", "Школа", "Класс"
+     * (с учётом регистра, возможного двоеточия и пробелов после них)
+     */
+    private String cleanSubject(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String lower = raw.toLowerCase();
+        String[] markers = {"округ", "школа", "класс"};
+        int cutIndex = raw.length();
+
+        for (String marker : markers) {
+            int idx = lower.indexOf(marker);
+            if (idx >= 0 && idx < cutIndex) {
+                cutIndex = idx;
+            }
+        }
+
+        if (cutIndex < raw.length()) {
+            raw = raw.substring(0, cutIndex).trim();
+        }
+        // дополнительно удаляем возможные хвостовые символы (двоеточие, пробелы, точки)
+        raw = raw.replaceAll("[\\.;:,\\-\\s]+$", "").trim();
+        return raw;
     }
 
     private void setAveragePercents(OtherDiagnosticData data, String text) {

@@ -31,6 +31,6 @@ public class AppConfig {
             "C:\\Users\\dimah\\Yandex.Disk\\{школа}\\МЦКО";
 
     // Дополнительные константы м
-    public static final boolean ENABLE_MOVE = true; //переносить файлы или нет true переносить
+    public static final boolean ENABLE_MOVE = false; //переносить файлы или нет true переносить
     public static final int BATCH_SIZE = 100;
 }
