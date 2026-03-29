@@ -18,6 +18,7 @@ import org.school.MckoReport.MckoCompleks.service.parser.OtherDiagnosticMgmParse
 import org.school.MckoReport.MckoCompleks.service.parser.OtherDiagnosticParserService;
 import org.school.MckoReport.MckoCompleks.service.parser.ResultFGProcessorService;
 import org.school.MckoReport.MckoCompleks.service.parser.ResultProcessorService;
+import org.school.MckoReport.MckoCompleks.service.report.CombinedReportPersistenceService;
 import org.school.MckoReport.MckoCompleks.service.report.DataCombinationService;
 import org.school.MckoReport.MckoCompleks.service.report.ExcelExportService;
 import org.school.MckoReport.MckoCompleks.util.SubjectNormalizerUtil;
@@ -50,6 +51,7 @@ public class GeneralService {
     private final ResultProcessorService resultProcessorService;
     private final DataCombinationService dataCombinationService;
     private final ExcelExportService excelExportService;
+    private final CombinedReportPersistenceService combinedReportPersistenceService;
     private final OtherDiagnosticParserService otherDiagnosticParserService;
     private final OtherDiagnosticMgmParserService otherDiagnosticMgmParserService;
     private final OtherDiagnosticMgchParserService otherDiagnosticMgchParserService;
@@ -472,34 +474,6 @@ public class GeneralService {
 
             normalizeSubjectsForReport(allStudents, allStudentResults, allStudentFGResults, allOtherDiagnosticResults);
 
-            // Создаем Map для быстрого поиска результатов по ключам
-            Map<String, StudentResultData> resultDataMap = allStudentResults.stream()
-                    .filter(result -> hasText(result.getCode()))
-                    .collect(Collectors.toMap(
-                            result -> buildKey(result.getCode(), result.getClassName(),
-                                    result.getSubject(), result.getDate()),
-                            result -> result,
-                            (existing, replacement) -> existing // при дубликатах берем первый
-                    ));
-
-            Map<String, StudentResultData> resultDataByStudentNumberMap = allStudentResults.stream()
-                    .filter(result -> result.getStudentNumber() != null)
-                    .collect(Collectors.toMap(
-                            result -> buildStudentNumberKey(result.getStudentNumber(), result.getClassName(),
-                                    result.getSubject(), result.getDate()),
-                            result -> result,
-                            (existing, replacement) -> existing
-                    ));
-
-            Map<String, StudentResultFGData> fgDataMap = allStudentFGResults.stream()
-                    .filter(fg -> hasText(fg.getCode()))
-                    .collect(Collectors.toMap(
-                            fg -> buildKey(fg.getCode(), fg.getClassName(),
-                                    fg.getSubject(), fg.getDate()),
-                            fg -> fg,
-                            (existing, replacement) -> existing // при дубликатах берем первый
-                    ));
-
             Map<String, OtherDiagnosticData> otherDiagnosticByKey = allOtherDiagnosticResults.stream()
                     .collect(Collectors.toMap(
                             diagnostic -> buildReportWorkKey(
@@ -525,117 +499,17 @@ public class GeneralService {
                             (existing, replacement) -> existing
                     ));
 
-            // Собираем объединенные данные
-            List<CombinedResultData> combinedResults = new ArrayList<>();
-            log.debug("длина combinedResults {}", combinedResults.size());
-
-            for (ListStudentData student : allStudents) {
-                CombinedResultData combined = new CombinedResultData();
-
-                // Копируем данные из ListStudentData
-                combined.setNameFIO(student.getNameFIO());
-                combined.setCode(student.getCode());
-                combined.setClassName(student.getClassName());
-                combined.setSubject(SubjectNormalizerUtil.normalize(student.getSubject()));
-                combined.setDate(student.getDate());
-                combined.setSchool(student.getSchool());
-                combined.setSchoolYear(student.getSchoolYear());
-
-                // Ищем соответствующие данные в StudentResultData
-                StudentResultData resultData = null;
-                if (hasText(student.getCode())) {
-                    String resultKey = buildKey(student.getCode(), student.getClassName(),
-                            student.getSubject(), student.getDate());
-                    resultData = resultDataMap.get(resultKey);
-                }
-                if (resultData == null) {
-                    resultData = resultDataByStudentNumberMap.get(
-                            buildStudentNumberKey(student.getStudentNumber(), student.getClassName(),
-                                    student.getSubject(), student.getDate())
-                    );
-                }
-
-                String schoolYear = student.getSchoolYear();
-                if (resultData != null && !hasText(schoolYear)) {
-                    schoolYear = resultData.getSchoolYear();
-                }
-
-                if (resultData != null) {
-                    // Копируем данные из StudentResultData
-                    combined.setParallel(resultData.getParallel());
-                    combined.setLetter(resultData.getLetter());
-                    combined.setVariant(resultData.getVariant());
-                    combined.setTaskScores(resultData.getTaskScores());
-                    combined.setBall(resultData.getBall());
-                    combined.setPercentCompleted(resultData.getPercentCompleted());
-                    combined.setMark(resultData.getMark());
-                    combined.setStudentNumber(resultData.getStudentNumber());
-                    combined.setHasResultData(true);
-
-                    // Обновляем className если он есть в resultData (более точный)
-                    if (resultData.getClassName() != null && !resultData.getClassName().isEmpty()) {
-                        combined.setClassName(resultData.getClassName());
-                    }
-                } else {
-                    combined.setHasResultData(false);
-                }
-
-                // Ищем соответствующие данные в StudentResultFGData
-                StudentResultFGData fgData = null;
-                if (hasText(student.getCode())) {
-                    String fgKey = buildKey(student.getCode(), student.getClassName(),
-                            student.getSubject(), student.getDate());
-                    fgData = fgDataMap.get(fgKey);
-                }
-
-                if (fgData != null && !hasText(schoolYear)) {
-                    schoolYear = fgData.getSchoolYear();
-                }
-                combined.setSchoolYear(schoolYear);
-
-                String classNameForLookup = combined.getClassName();
-                OtherDiagnosticData diagnosticData = otherDiagnosticByKey.get(
-                        buildReportWorkKey(
-                                schoolName,
-                                combined.getSubject(),
-                                combined.getDate(),
-                                classNameForLookup,
-                                combined.getSchoolYear()
-                        )
-                );
-
-                if (diagnosticData == null) {
-                    diagnosticData = otherDiagnosticByKeyWithoutYear.get(
-                            buildReportWorkKeyWithoutYear(
-                                    schoolName,
-                                    combined.getSubject(),
-                                    combined.getDate(),
-                                    classNameForLookup
-                            )
-                    );
-                }
-
-                if (diagnosticData != null) {
-                    combined.setClassLevel(diagnosticData.getAvgPercent());
-                    combined.setCityLevel(diagnosticData.getCityPercent());
-                }
-
-                if (fgData != null) {
-                    // Копируем данные из StudentResultFGData
-                    combined.setOverallPercent(fgData.getOverallPercent());
-                    combined.setMasteryLevel(fgData.getMasteryLevel());
-                    combined.setSection1Percent(fgData.getSection1Percent());
-                    combined.setSection2Percent(fgData.getSection2Percent());
-                    combined.setSection3Percent(fgData.getSection3Percent());
-                    combined.setHasFGData(true);
-                } else {
-                    combined.setHasFGData(false);
-                }
-
-                combinedResults.add(combined);
-            }
+            List<CombinedResultData> combinedResults = buildCombinedResultsUsingCombinationService(
+                    allStudents,
+                    schoolName
+            );
+            enrichWithDiagnosticLevels(combinedResults, schoolName, otherDiagnosticByKey, otherDiagnosticByKeyWithoutYear);
 
             log.debug("длина combinedResults перед передачей в генератор эксель {}", combinedResults.size());
+
+            // Сохраняем объединенные данные для накопительного анализа в таблицу MCKO_*
+            combinedReportPersistenceService.upsertCombinedResults(combinedResults);
+
             // Создаем Excel
             List<ProcessingErrorInfo> processingErrors = processingErrorsBySchool.getOrDefault(
                     schoolName,
@@ -678,23 +552,63 @@ public class GeneralService {
         log.info("=".repeat(60));
     }
 
-    // Вспомогательный метод для создания ключа
-    private String buildKey(String code, String className, String subject, String date) {
-        return String.format("%s|%s|%s|%s",
-                code != null ? code : "",
-                normalizeClassToken(className),
-                normalizeSubjectToken(subject),
-                date != null ? date : ""
-        );
+    private List<CombinedResultData> buildCombinedResultsUsingCombinationService(List<ListStudentData> allStudents,
+                                                                                  String schoolName) {
+        Set<String> uniqueCombinations = allStudents.stream()
+                .map(student -> String.join("|",
+                        safe(student.getSubject()),
+                        safe(student.getDate()),
+                        safe(student.getClassName())))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<CombinedResultData> combinedResults = new ArrayList<>();
+        for (String combination : uniqueCombinations) {
+            String[] parts = combination.split("\\|", -1);
+            String subject = parts[0];
+            String date = parts[1];
+            String className = parts[2];
+            combinedResults.addAll(
+                    dataCombinationService.combineDataByKey(schoolName, subject, date, className)
+            );
+        }
+        return combinedResults;
     }
 
-    private String buildStudentNumberKey(Integer studentNumber, String className, String subject, String date) {
-        return String.format("%s|%s|%s|%s",
-                studentNumber != null ? studentNumber : "",
-                normalizeClassToken(className),
-                normalizeSubjectToken(subject),
-                date != null ? date : ""
-        );
+    private void enrichWithDiagnosticLevels(List<CombinedResultData> combinedResults,
+                                            String schoolName,
+                                            Map<String, OtherDiagnosticData> otherDiagnosticByKey,
+                                            Map<String, OtherDiagnosticData> otherDiagnosticByKeyWithoutYear) {
+        for (CombinedResultData combined : combinedResults) {
+            OtherDiagnosticData diagnosticData = otherDiagnosticByKey.get(
+                    buildReportWorkKey(
+                            schoolName,
+                            combined.getSubject(),
+                            combined.getDate(),
+                            combined.getClassName(),
+                            combined.getSchoolYear()
+                    )
+            );
+
+            if (diagnosticData == null) {
+                diagnosticData = otherDiagnosticByKeyWithoutYear.get(
+                        buildReportWorkKeyWithoutYear(
+                                schoolName,
+                                combined.getSubject(),
+                                combined.getDate(),
+                                combined.getClassName()
+                        )
+                );
+            }
+
+            if (diagnosticData != null) {
+                combined.setClassLevel(diagnosticData.getAvgPercent());
+                combined.setCityLevel(diagnosticData.getCityPercent());
+            }
+        }
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
     }
 
     private String buildReportWorkKey(String school, String subject, String date, String className, String schoolYear) {

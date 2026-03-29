@@ -22,6 +22,10 @@ import java.util.regex.Pattern;
 @Service
 public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
 
+    private static final String COMPARISON_EQUAL = "равно";
+    private static final String COMPARISON_HIGHER = "выше";
+    private static final String COMPARISON_LOWER = "ниже";
+    private static final String COMPARISON_UNKNOWN = "неизвестно";
 
 
     @Override
@@ -44,30 +48,8 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
             List<StudentResultFGData> studentResults = extractStudentResults(text,
                     className, subject, date, school);
 
-            Integer cityPercent = extractCityPercent(text);
-            if (cityPercent != null) {
-                for (StudentResultFGData student : studentResults) {
-                    student.setCityPercent(cityPercent);
-                    String overallStr = student.getOverallPercent();
-                    try {
-                        double studentPercent = Double.parseDouble(overallStr);
-                        if (Math.abs(studentPercent - cityPercent) < 0.01) {
-                            student.setCityComparison("равно");
-                        } else if (studentPercent > cityPercent) {
-                            student.setCityComparison("выше");
-                        } else {
-                            student.setCityComparison("ниже");
-                        }
-                    } catch (NumberFormatException e) {
-                        student.setCityComparison("неизвестно");
-                    }
-                }
-            } else {
-                studentResults.forEach(s -> {
-                    s.setCityComparison("неизвестно");
-                    s.setCityPercent(null);
-                });
-            }
+            BenchmarkPercents benchmarkPercents = extractBenchmarkPercents(text);
+            applyBenchmarkComparisons(studentResults, benchmarkPercents);
 
             log.info("Найдено записей студентов: {}", studentResults.size());
             allResults.addAll(studentResults);
@@ -216,7 +198,7 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
 
         // Если не нашли данные обычным способом, пытаемся альтернативным парсингом
         if (results.isEmpty()) {
-            results = alternativeParse(text, className, subject, date);
+            results = alternativeParse(text, className, subject, date, school);
         }
 
         return results;
@@ -346,9 +328,7 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
             return result;
 
         } catch (Exception e) {
-
-                System.err.println("Ошибка парсинга строки: " + line);
-
+            log.warn("Ошибка парсинга строки результата ФГ: {}", line);
             return null;
         }
     }
@@ -356,7 +336,8 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
     private static List<StudentResultFGData> alternativeParse(String text,
                                                               String className,
                                                               String subject,
-                                                              String date) {
+                                                              String date,
+                                                              String school) {
         List<StudentResultFGData> results = new ArrayList<>();
 
         // Разбиваем текст на строки
@@ -429,6 +410,7 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
                         result.setClassName(className);
                         result.setSubject(subject);
                         result.setDate(date);
+                        result.setSchool(school);
                         result.setSchoolYear(DateNormalizerUtil.calculateSchoolYear(date));
                         result.setOverallPercent(overallPercent);
                         result.setMasteryLevel(masteryLevel.isEmpty() ? "Не определен" : masteryLevel);
@@ -445,16 +427,56 @@ public class ResultFGProcessorServiceImpl implements ResultFGProcessorService {
         return results;
     }
 
-    private Integer extractCityPercent(String text) {
-        Pattern pattern = Pattern.compile("Средний\\s+%\\s+выполнения\\s+теста:\\s*(\\d+)%\\s*(\\d+)%");
+    private BenchmarkPercents extractBenchmarkPercents(String text) {
+        Pattern pattern = Pattern.compile(
+                "Средний\\s+%\\s+выполнения\\s+(?:диагн\\.\\s+работы|теста):\\s*(\\d+)%\\s*(\\d+)%",
+                Pattern.CASE_INSENSITIVE
+        );
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
             try {
-                return Integer.parseInt(matcher.group(2));
+                Integer classPercent = Integer.parseInt(matcher.group(1));
+                Integer cityPercent = Integer.parseInt(matcher.group(2));
+                return new BenchmarkPercents(classPercent, cityPercent);
             } catch (NumberFormatException e) {
-                log.warn("Не удалось распарсить городской процент: {}", matcher.group(2));
+                log.warn("Не удалось распарсить проценты класса/города: {} {}", matcher.group(1), matcher.group(2));
             }
         }
-        return null;
+        return new BenchmarkPercents(null, null);
+    }
+
+    private void applyBenchmarkComparisons(List<StudentResultFGData> studentResults, BenchmarkPercents benchmarkPercents) {
+        for (StudentResultFGData student : studentResults) {
+            student.setClassPercent(benchmarkPercents.classPercent());
+            student.setCityPercent(benchmarkPercents.cityPercent());
+
+            Integer studentPercent = parseStudentPercent(student.getOverallPercent());
+            student.setClassComparison(comparePercent(studentPercent, benchmarkPercents.classPercent()));
+            student.setCityComparison(comparePercent(studentPercent, benchmarkPercents.cityPercent()));
+        }
+    }
+
+    private Integer parseStudentPercent(String overallPercent) {
+        if (overallPercent == null || overallPercent.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(overallPercent.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String comparePercent(Integer studentPercent, Integer benchmarkPercent) {
+        if (studentPercent == null || benchmarkPercent == null) {
+            return COMPARISON_UNKNOWN;
+        }
+        if (studentPercent.equals(benchmarkPercent)) {
+            return COMPARISON_EQUAL;
+        }
+        return studentPercent > benchmarkPercent ? COMPARISON_HIGHER : COMPARISON_LOWER;
+    }
+
+    private record BenchmarkPercents(Integer classPercent, Integer cityPercent) {
     }
 }
