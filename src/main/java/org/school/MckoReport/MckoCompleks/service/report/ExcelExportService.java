@@ -132,7 +132,7 @@ public class ExcelExportService {
                 row.createCell(0).setCellValue(record.getNameFIO() != null ? record.getNameFIO() : "");
                 row.createCell(1).setCellValue(record.getCode() != null ? record.getCode() : "");
                 row.createCell(2).setCellValue(normalizeClassName(record.getClassName()));
-                row.createCell(3).setCellValue(record.getSubject() != null ? record.getSubject() : "");
+                row.createCell(3).setCellValue(normalizeSubjectName(record.getSubject()));
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
                 row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
                 row.createCell(6).setCellValue(record.getSchool() != null ? record.getSchool() : "");
@@ -180,7 +180,7 @@ public class ExcelExportService {
                 row.createCell(0).setCellValue(record.getNameFIO() != null ? record.getNameFIO() : "");
                 row.createCell(1).setCellValue(record.getCode() != null ? record.getCode() : "");
                 row.createCell(2).setCellValue(normalizeClassName(record.getClassName()));
-                row.createCell(3).setCellValue(record.getSubject() != null ? record.getSubject() : "");
+                row.createCell(3).setCellValue(normalizeSubjectName(record.getSubject()));
                 row.createCell(4).setCellValue(record.getDate() != null ? record.getDate() : "");
                 row.createCell(5).setCellValue(record.getSchoolYear() != null ? record.getSchoolYear() : "");
                 row.createCell(6).setCellValue(record.getSchool() != null ? record.getSchool() : "");
@@ -217,30 +217,38 @@ public class ExcelExportService {
         Map<String, WorkSummary> workSummaryMap = new LinkedHashMap<>();
 
         for (ListStudentData student : allStudents) {
-            String key = buildWorkKey(student.getSchool(), student.getSubject(), student.getDate(), student.getClassName(), student.getSchoolYear());
+            String normalizedSubject = normalizeSubjectName(student.getSubject());
+            String normalizedClass = normalizeClassName(student.getClassName());
+            String key = buildWorkKey(student.getSchool(), normalizedSubject, student.getDate(), normalizedClass, student.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
-                    k -> new WorkSummary(student.getSchool(), student.getSubject(), student.getDate(), student.getClassName(), student.getSchoolYear()));
+                    k -> new WorkSummary(student.getSchool(), normalizedSubject, student.getDate(), normalizedClass, student.getSchoolYear()));
             summary.childSheetRows++;
         }
 
         for (StudentResultData result : allStudentResults) {
-            String key = buildWorkKey(result.getSchool(), result.getSubject(), result.getDate(), result.getClassName(), result.getSchoolYear());
+            String normalizedSubject = normalizeSubjectName(result.getSubject());
+            String normalizedClass = normalizeClassName(result.getClassName());
+            String key = buildWorkKey(result.getSchool(), normalizedSubject, result.getDate(), normalizedClass, result.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
-                    k -> new WorkSummary(result.getSchool(), result.getSubject(), result.getDate(), result.getClassName(), result.getSchoolYear()));
+                    k -> new WorkSummary(result.getSchool(), normalizedSubject, result.getDate(), normalizedClass, result.getSchoolYear()));
             summary.resultRows++;
         }
 
         for (StudentResultFGData fgResult : allStudentFGResults) {
-            String key = buildWorkKey(fgResult.getSchool(), fgResult.getSubject(), fgResult.getDate(), fgResult.getClassName(), fgResult.getSchoolYear());
+            String normalizedSubject = normalizeSubjectName(fgResult.getSubject());
+            String normalizedClass = normalizeClassName(fgResult.getClassName());
+            String key = buildWorkKey(fgResult.getSchool(), normalizedSubject, fgResult.getDate(), normalizedClass, fgResult.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
-                    k -> new WorkSummary(fgResult.getSchool(), fgResult.getSubject(), fgResult.getDate(), fgResult.getClassName(), fgResult.getSchoolYear()));
+                    k -> new WorkSummary(fgResult.getSchool(), normalizedSubject, fgResult.getDate(), normalizedClass, fgResult.getSchoolYear()));
             summary.fgRows++;
         }
 
         for (OtherDiagnosticData diagnostic : allOtherDiagnosticResults) {
-            String key = buildWorkKey(diagnostic.getSchool(), diagnostic.getSubject(), diagnostic.getDate(), diagnostic.getClassName(), diagnostic.getSchoolYear());
+            String normalizedSubject = normalizeSubjectName(diagnostic.getSubject());
+            String normalizedClass = normalizeClassName(diagnostic.getClassName());
+            String key = buildWorkKey(diagnostic.getSchool(), normalizedSubject, diagnostic.getDate(), normalizedClass, diagnostic.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
-                    k -> new WorkSummary(diagnostic.getSchool(), diagnostic.getSubject(), diagnostic.getDate(), diagnostic.getClassName(), diagnostic.getSchoolYear()));
+                    k -> new WorkSummary(diagnostic.getSchool(), normalizedSubject, diagnostic.getDate(), normalizedClass, diagnostic.getSchoolYear()));
             summary.otherDiagnosticRows++;
             if (hasText(diagnostic.getAvgPercent())) {
                 summary.classLevel = diagnostic.getAvgPercent();
@@ -275,7 +283,7 @@ public class ExcelExportService {
         for (WorkSummary summary : workSummaryMap.values()) {
             Row row = sheet.createRow(rowNum++);
             row.createCell(0).setCellValue(valueOrEmpty(summary.school));
-            row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
+            row.createCell(1).setCellValue(normalizeSubjectName(summary.subject));
             row.createCell(2).setCellValue(valueOrEmpty(summary.date));
             row.createCell(3).setCellValue(valueOrEmpty(summary.schoolYear));
             row.createCell(4).setCellValue(normalizeClassName(summary.className));
@@ -317,7 +325,7 @@ public class ExcelExportService {
 
             Row row = sheet.createRow(rowNum++);
             row.createCell(0).setCellValue(valueOrEmpty(summary.school));
-            row.createCell(1).setCellValue(valueOrEmpty(summary.subject));
+            row.createCell(1).setCellValue(normalizeSubjectName(summary.subject));
             row.createCell(2).setCellValue(valueOrEmpty(summary.date));
             row.createCell(3).setCellValue(valueOrEmpty(summary.schoolYear));
             row.createCell(4).setCellValue(normalizeClassName(summary.className));
@@ -385,6 +393,19 @@ public class ExcelExportService {
             return normalized.replaceAll("^(\\d+)([А-ЯЕ])$", "$1-$2");
         }
         return normalized;
+    }
+
+    private String normalizeSubjectName(String subject) {
+        if (subject == null) {
+            return "";
+        }
+        return subject
+                .replaceAll("[\\r\\n]+", " ")
+                .replaceAll("(?i)\\bокруг\\b\\s*:?\\s*.*$", "")
+                .replaceAll("(?i)\\bшкола\\b\\s*:?\\s*.*$", "")
+                .replaceAll("(?i)\\bкласс\\b\\s*:?\\s*.*$", "")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private static class WorkSummary {

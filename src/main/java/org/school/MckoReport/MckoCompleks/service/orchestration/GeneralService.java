@@ -13,11 +13,14 @@ import org.school.MckoReport.MckoCompleks.repository.StudentResultDataRepository
 import org.school.MckoReport.MckoCompleks.repository.StudentResultFGDataRepository;
 import org.school.MckoReport.MckoCompleks.service.file.FindFilesService;
 import org.school.MckoReport.MckoCompleks.service.parser.ListProcessingService;
+import org.school.MckoReport.MckoCompleks.service.parser.OtherDiagnosticMgchParserService;
+import org.school.MckoReport.MckoCompleks.service.parser.OtherDiagnosticMgmParserService;
 import org.school.MckoReport.MckoCompleks.service.parser.OtherDiagnosticParserService;
 import org.school.MckoReport.MckoCompleks.service.parser.ResultFGProcessorService;
 import org.school.MckoReport.MckoCompleks.service.parser.ResultProcessorService;
 import org.school.MckoReport.MckoCompleks.service.report.DataCombinationService;
 import org.school.MckoReport.MckoCompleks.service.report.ExcelExportService;
+import org.school.MckoReport.MckoCompleks.util.SubjectNormalizerUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +51,8 @@ public class GeneralService {
     private final DataCombinationService dataCombinationService;
     private final ExcelExportService excelExportService;
     private final OtherDiagnosticParserService otherDiagnosticParserService;
+    private final OtherDiagnosticMgmParserService otherDiagnosticMgmParserService;
+    private final OtherDiagnosticMgchParserService otherDiagnosticMgchParserService;
     private final OtherDiagnosticDataRepository otherDiagnosticDataRepository;
     private final Map<String, List<ProcessingErrorInfo>> processingErrorsBySchool = new HashMap<>();
 
@@ -376,18 +381,21 @@ public class GeneralService {
     private void applySchoolName(List<ListStudentData> students, String schoolName) {
         for (ListStudentData student : students) {
             student.setSchool(schoolName);
+            student.setSubject(SubjectNormalizerUtil.normalize(student.getSubject()));
         }
     }
 
     private void applySchoolNameToFG(List<StudentResultFGData> results, String schoolName) {
         for (StudentResultFGData result : results) {
             result.setSchool(schoolName);
+            result.setSubject(SubjectNormalizerUtil.normalize(result.getSubject()));
         }
     }
 
     private void applySchoolNameToResults(List<StudentResultData> results, String schoolName) {
         for (StudentResultData result : results) {
             result.setSchool(schoolName);
+            result.setSubject(SubjectNormalizerUtil.normalize(result.getSubject()));
         }
     }
 
@@ -789,7 +797,10 @@ public class GeneralService {
                 // 3. Классифицируем файлы
                 Map<String, List<Path>> dispatch = findFilesService.dispatchProcessing(filesList);
                 List<Path> diagnosticFiles = dispatch.getOrDefault(FileCategory.OTHER_DIAGNOSTICS.name(), Collections.emptyList());
-                log.info("Файлов других диагностик: {}", diagnosticFiles.size());
+                List<Path> mgmDiagnosticFiles = dispatch.getOrDefault(FileCategory.OTHER_DIAGNOSTICS_MGM.name(), Collections.emptyList());
+                List<Path> mgchDiagnosticFiles = dispatch.getOrDefault(FileCategory.OTHER_DIAGNOSTICS_MGCH.name(), Collections.emptyList());
+                log.info("Файлов других диагностик: {}, из них МГМ: {}, МГЧ: {}",
+                        diagnosticFiles.size(), mgmDiagnosticFiles.size(), mgchDiagnosticFiles.size());
 
                 // 4. Обрабатываем каждый файл
                 for (Path path : diagnosticFiles) {
@@ -825,6 +836,76 @@ public class GeneralService {
                         totalFailed++;
                         log.error("Критическая ошибка при обработке файла {}: {}", path, e.getMessage(), e);
                         registerProcessingError(schoolName, path, "OTHER_DIAGNOSTIC_PARSE", e.getMessage());
+                    }
+                }
+
+                // 5. Обрабатываем МГМ файлы отдельным парсером
+                for (Path path : mgmDiagnosticFiles) {
+                    try {
+                        List<OtherDiagnosticData> dataList = otherDiagnosticMgmParserService.extractDiagnosticData(path);
+
+                        if (!dataList.isEmpty()) {
+                            applySchoolNameToOtherDiagnostics(dataList, schoolName);
+                            if (AppConfig.BATCH_SIZE > 0 && dataList.size() > AppConfig.BATCH_SIZE) {
+                                saveInBatchesOtherDiagnostic(dataList, AppConfig.BATCH_SIZE);
+                            } else {
+                                otherDiagnosticDataRepository.saveAll(dataList);
+                            }
+
+                            totalProcessed += dataList.size();
+
+                            if (!successfullyProcessed.contains(path)) {
+                                successfullyProcessed.add(path);
+                            }
+
+                            log.info("МГМ-файл {} обработан успешно, сохранено {} записей",
+                                    path.getFileName(), dataList.size());
+                        } else {
+                            log.warn("МГМ-файл {} не содержит данных о диагностике", path.getFileName());
+                        }
+                    } catch (ProcessingException e) {
+                        totalFailed++;
+                        log.error("МГМ-файл {} не обработан. Причина парсинга: {}", path.getFileName(), e.getMessage(), e);
+                        registerProcessingError(schoolName, path, "OTHER_DIAGNOSTIC_MGM_PARSE", e.getMessage());
+                    } catch (Exception e) {
+                        totalFailed++;
+                        log.error("Критическая ошибка при обработке МГМ-файла {}: {}", path, e.getMessage(), e);
+                        registerProcessingError(schoolName, path, "OTHER_DIAGNOSTIC_MGM_PARSE", e.getMessage());
+                    }
+                }
+
+                // 6. Обрабатываем МГЧ файлы отдельным парсером
+                for (Path path : mgchDiagnosticFiles) {
+                    try {
+                        List<OtherDiagnosticData> dataList = otherDiagnosticMgchParserService.extractDiagnosticData(path);
+
+                        if (!dataList.isEmpty()) {
+                            applySchoolNameToOtherDiagnostics(dataList, schoolName);
+                            if (AppConfig.BATCH_SIZE > 0 && dataList.size() > AppConfig.BATCH_SIZE) {
+                                saveInBatchesOtherDiagnostic(dataList, AppConfig.BATCH_SIZE);
+                            } else {
+                                otherDiagnosticDataRepository.saveAll(dataList);
+                            }
+
+                            totalProcessed += dataList.size();
+
+                            if (!successfullyProcessed.contains(path)) {
+                                successfullyProcessed.add(path);
+                            }
+
+                            log.info("МГЧ-файл {} обработан успешно, сохранено {} записей",
+                                    path.getFileName(), dataList.size());
+                        } else {
+                            log.warn("МГЧ-файл {} не содержит данных о диагностике", path.getFileName());
+                        }
+                    } catch (ProcessingException e) {
+                        totalFailed++;
+                        log.error("МГЧ-файл {} не обработан. Причина парсинга: {}", path.getFileName(), e.getMessage(), e);
+                        registerProcessingError(schoolName, path, "OTHER_DIAGNOSTIC_MGCH_PARSE", e.getMessage());
+                    } catch (Exception e) {
+                        totalFailed++;
+                        log.error("Критическая ошибка при обработке МГЧ-файла {}: {}", path, e.getMessage(), e);
+                        registerProcessingError(schoolName, path, "OTHER_DIAGNOSTIC_MGCH_PARSE", e.getMessage());
                     }
                 }
 
@@ -869,6 +950,7 @@ public class GeneralService {
     private void applySchoolNameToOtherDiagnostics(List<OtherDiagnosticData> dataList, String schoolName) {
         for (OtherDiagnosticData data : dataList) {
             data.setSchool(schoolName);
+            data.setSubject(SubjectNormalizerUtil.normalize(data.getSubject()));
         }
     }
 

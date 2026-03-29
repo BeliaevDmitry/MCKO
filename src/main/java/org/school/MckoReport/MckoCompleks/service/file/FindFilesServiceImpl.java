@@ -466,6 +466,8 @@ public class FindFilesServiceImpl implements FindFilesService {
         Map<String, List<Path>> result = new HashMap<>();
         result.put(FileCategory.FG_PDF_RESULTS.name(), new ArrayList<>());   // PDF с "ФГ"
         result.put(FileCategory.EXCEL_RESULTS.name(), new ArrayList<>());    // Excel файлы
+        result.put(FileCategory.OTHER_DIAGNOSTICS_MGM.name(), new ArrayList<>()); // PDF МГМ
+        result.put(FileCategory.OTHER_DIAGNOSTICS_MGCH.name(), new ArrayList<>()); // PDF МГЧ
         result.put(FileCategory.OTHER_DIAGNOSTICS.name(), new ArrayList<>()); // PDF других диагностик (_pm..., не ФГ)
         result.put(FileCategory.OTHER.name(), new ArrayList<>());    // Все остальное
 
@@ -481,6 +483,8 @@ public class FindFilesServiceImpl implements FindFilesService {
 
         int fgPdfCount = 0;
         int excelCount = 0;
+        int mgmDiagnosticsCount = 0;
+        int mgchDiagnosticsCount = 0;
         int otherDiagnosticsCount = 0;
         int otherCount = 0;
 
@@ -514,6 +518,14 @@ public class FindFilesServiceImpl implements FindFilesService {
                     result.get(FileCategory.EXCEL_RESULTS.name()).add(path);
                     excelCount++;
                     log.debug("EXCEL: {}", fileName);
+                } else if (isMgmDiagnosticsPdfFile(lowerFileName, fileName)) {
+                    result.get(FileCategory.OTHER_DIAGNOSTICS_MGM.name()).add(path);
+                    mgmDiagnosticsCount++;
+                    log.debug("OTHER_DIAGNOSTICS_MGM: {}", fileName);
+                } else if (isMgchDiagnosticsPdfFile(lowerFileName, fileName)) {
+                    result.get(FileCategory.OTHER_DIAGNOSTICS_MGCH.name()).add(path);
+                    mgchDiagnosticsCount++;
+                    log.debug("OTHER_DIAGNOSTICS_MGCH: {}", fileName);
                 } else if (isOtherDiagnosticsPdfFile(lowerFileName)) {
                     result.get(FileCategory.OTHER_DIAGNOSTICS.name()).add(path);
                     otherDiagnosticsCount++;
@@ -534,6 +546,8 @@ public class FindFilesServiceImpl implements FindFilesService {
         log.info("Классификация завершена:");
         log.info("  FG_PDF файлов: {}", fgPdfCount);
         log.info("  EXCEL файлов: {}", excelCount);
+        log.info("  OTHER_DIAGNOSTICS_MGM файлов: {}", mgmDiagnosticsCount);
+        log.info("  OTHER_DIAGNOSTICS_MGCH файлов: {}", mgchDiagnosticsCount);
         log.info("  OTHER_DIAGNOSTICS файлов: {}", otherDiagnosticsCount);
         log.info("  OTHER файлов: {}", otherCount);
 
@@ -574,6 +588,22 @@ public class FindFilesServiceImpl implements FindFilesService {
 
     private boolean isOtherDiagnosticsPdfFile(String lowerFileName) {
         return lowerFileName.endsWith(".pdf");
+    }
+
+    private boolean isMgmDiagnosticsPdfFile(String lowerFileName, String originalFileName) {
+        if (!lowerFileName.endsWith(".pdf")) {
+            return false;
+        }
+        return lowerFileName.contains("мгм")
+                || originalFileName.contains("МГМ");
+    }
+
+    private boolean isMgchDiagnosticsPdfFile(String lowerFileName, String originalFileName) {
+        if (!lowerFileName.endsWith(".pdf")) {
+            return false;
+        }
+        return lowerFileName.contains("мгч")
+                || originalFileName.contains("МГЧ");
     }
 
     /**
