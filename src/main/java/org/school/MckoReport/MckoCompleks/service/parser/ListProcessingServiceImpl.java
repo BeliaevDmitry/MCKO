@@ -8,6 +8,7 @@ import org.school.MckoReport.MckoCompleks.model.ArchiveEntry;
 import org.school.MckoReport.MckoCompleks.model.ListStudentData;
 import org.school.MckoReport.MckoCompleks.service.parser.ListProcessingService;
 import org.school.MckoReport.MckoCompleks.util.DateNormalizerUtil;
+import org.school.MckoReport.MckoCompleks.util.SubjectNormalizerUtil;
 import org.springframework.stereotype.Service;
 
 
@@ -333,7 +334,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                             // Проверяем, что это не заголовок таблицы
                             if (!subjectLine.contains("ФИО") &&
                                     !subjectLine.contains("Код")) {
-                                metadata.put("subject", subjectLine);
+                                metadata.put("subject", SubjectNormalizerUtil.normalize(subjectLine));
                             }
                         }
                         break;
