@@ -66,12 +66,66 @@ public class OtherDiagnosticMgchParserServiceImpl implements OtherDiagnosticMgch
     }
 
     private String extractSubjectForMgch(String text) {
-        Pattern pattern = Pattern.compile("Дата:\\s*.+?\\s+(.+?)\\s+Округ:", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+        // 1. Явный "Предмет:"
+        Pattern pattern = Pattern.compile("Предмет:\\s*([^\\r\\n]+)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
-            return SubjectNormalizerUtil.normalize(matcher.group(1));
+            return normalizeSubject(cleanSubject(matcher.group(1)));
         }
+
+        // 2. Между "Дата:" и "Округ:" (как было, но с очисткой)
+        Pattern fallbackPattern = Pattern.compile(
+                "Дата:\\s*.+?\\s+(.+?)\\s+Округ:",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        );
+        Matcher fallbackMatcher = fallbackPattern.matcher(text);
+        if (fallbackMatcher.find()) {
+            String raw = fallbackMatcher.group(1).trim();
+            return normalizeSubject(cleanSubject(raw));
+        }
+
+        // 3. После "года" до ближайшего маркера или конца строки (как в обычном парсере)
+        Pattern yearPattern = Pattern.compile(
+                "\\bгода\\b\\s+(.+?)(?=\\s+(?:Округ|Школа|Класс):|\\r?\\n|$)",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        );
+        Matcher yearMatcher = yearPattern.matcher(text);
+        if (yearMatcher.find()) {
+            String raw = yearMatcher.group(1).trim();
+            return normalizeSubject(cleanSubject(raw));
+        }
+
         return "не указан";
+    }
+
+    /**
+     * Обрезает строку по первому вхождению маркеров "Округ", "Школа", "Класс"
+     */
+    private String cleanSubject(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String lower = raw.toLowerCase();
+        String[] markers = {"округ", "школа", "класс"};
+        int cutIndex = raw.length();
+        for (String marker : markers) {
+            int idx = lower.indexOf(marker);
+            if (idx >= 0 && idx < cutIndex) {
+                cutIndex = idx;
+            }
+        }
+        if (cutIndex < raw.length()) {
+            raw = raw.substring(0, cutIndex).trim();
+        }
+        raw = raw.replaceAll("[\\.;:,\\-\\s]+$", "").trim();
+        return raw;
+    }
+
+    private String normalizeSubject(String rawSubject) {
+        if (!hasText(rawSubject)) {
+            return "не указан";
+        }
+        return SubjectNormalizerUtil.normalize(rawSubject);
     }
 
     private String extractSchool(String text) {
