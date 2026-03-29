@@ -470,6 +470,8 @@ public class GeneralService {
             List<OtherDiagnosticData> allOtherDiagnosticResults = otherDiagnosticDataRepository.findBySchool(schoolName);
             log.debug("длина allOtherDiagnosticResults {}", allOtherDiagnosticResults.size());
 
+            normalizeSubjectsForReport(allStudents, allStudentResults, allStudentFGResults, allOtherDiagnosticResults);
+
             // Создаем Map для быстрого поиска результатов по ключам
             Map<String, StudentResultData> resultDataMap = allStudentResults.stream()
                     .filter(result -> hasText(result.getCode()))
@@ -534,7 +536,7 @@ public class GeneralService {
                 combined.setNameFIO(student.getNameFIO());
                 combined.setCode(student.getCode());
                 combined.setClassName(student.getClassName());
-                combined.setSubject(student.getSubject());
+                combined.setSubject(SubjectNormalizerUtil.normalize(student.getSubject()));
                 combined.setDate(student.getDate());
                 combined.setSchool(student.getSchool());
                 combined.setSchoolYear(student.getSchoolYear());
@@ -681,7 +683,7 @@ public class GeneralService {
         return String.format("%s|%s|%s|%s",
                 code != null ? code : "",
                 normalizeClassToken(className),
-                subject != null ? subject : "",
+                normalizeSubjectToken(subject),
                 date != null ? date : ""
         );
     }
@@ -690,7 +692,7 @@ public class GeneralService {
         return String.format("%s|%s|%s|%s",
                 studentNumber != null ? studentNumber : "",
                 normalizeClassToken(className),
-                subject != null ? subject : "",
+                normalizeSubjectToken(subject),
                 date != null ? date : ""
         );
     }
@@ -698,7 +700,7 @@ public class GeneralService {
     private String buildReportWorkKey(String school, String subject, String date, String className, String schoolYear) {
         return String.format("%s|%s|%s|%s|%s",
                 school != null ? school : "",
-                subject != null ? subject : "",
+                normalizeSubjectToken(subject),
                 date != null ? date : "",
                 normalizeClassToken(className),
                 schoolYear != null ? schoolYear : ""
@@ -708,10 +710,14 @@ public class GeneralService {
     private String buildReportWorkKeyWithoutYear(String school, String subject, String date, String className) {
         return String.format("%s|%s|%s|%s",
                 school != null ? school : "",
-                subject != null ? subject : "",
+                normalizeSubjectToken(subject),
                 date != null ? date : "",
                 normalizeClassToken(className)
         );
+    }
+
+    private String normalizeSubjectToken(String subject) {
+        return SubjectNormalizerUtil.normalize(subject);
     }
 
     private String normalizeClassToken(String className) {
@@ -727,6 +733,24 @@ public class GeneralService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private void normalizeSubjectsForReport(List<ListStudentData> allStudents,
+                                            List<StudentResultData> allStudentResults,
+                                            List<StudentResultFGData> allStudentFGResults,
+                                            List<OtherDiagnosticData> allOtherDiagnosticResults) {
+        for (ListStudentData student : allStudents) {
+            student.setSubject(SubjectNormalizerUtil.normalize(student.getSubject()));
+        }
+        for (StudentResultData result : allStudentResults) {
+            result.setSubject(SubjectNormalizerUtil.normalize(result.getSubject()));
+        }
+        for (StudentResultFGData fgResult : allStudentFGResults) {
+            fgResult.setSubject(SubjectNormalizerUtil.normalize(fgResult.getSubject()));
+        }
+        for (OtherDiagnosticData diagnostic : allOtherDiagnosticResults) {
+            diagnostic.setSubject(SubjectNormalizerUtil.normalize(diagnostic.getSubject()));
+        }
     }
 
     /**
