@@ -56,4 +56,10 @@ public class StudentResultFGData {
 
      @Column(name = "city_percent")
      private Integer cityPercent;   // городской процент выполнения (например, 55)
+
+     @Column(name = "class_percent")
+     private Integer classPercent;  // средний процент выполнения по классу
+
+     @Column(name = "class_comparison", length = 20)
+     private String classComparison; // ниже, равно, выше, неизвестно
 }
