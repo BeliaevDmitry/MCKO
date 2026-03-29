@@ -20,17 +20,23 @@ public class CombinedReportPersistenceService {
             return;
         }
 
-        List<String> rowKeys = combinedResults.stream()
-                .map(this::buildRowKey)
-                .collect(Collectors.toList());
+        Map<String, CombinedResultData> uniqueByRowKey = new LinkedHashMap<>();
+        for (CombinedResultData combined : combinedResults) {
+            String rowKey = buildRowKey(combined);
+            CombinedResultData existing = uniqueByRowKey.get(rowKey);
+            uniqueByRowKey.put(rowKey, pickBetterRecord(existing, combined));
+        }
+
+        List<String> rowKeys = new ArrayList<>(uniqueByRowKey.keySet());
 
         Map<String, MckoCombinedReportData> existingByRowKey = mckoCombinedReportDataRepository.findByRowKeyIn(rowKeys)
                 .stream()
                 .collect(Collectors.toMap(MckoCombinedReportData::getRowKey, entity -> entity));
 
         List<MckoCombinedReportData> toSave = new ArrayList<>();
-        for (CombinedResultData combined : combinedResults) {
-            String rowKey = buildRowKey(combined);
+        for (Map.Entry<String, CombinedResultData> entry : uniqueByRowKey.entrySet()) {
+            String rowKey = entry.getKey();
+            CombinedResultData combined = entry.getValue();
             MckoCombinedReportData entity = existingByRowKey.getOrDefault(rowKey, new MckoCombinedReportData());
             entity.setRowKey(rowKey);
             fillEntity(entity, combined);
@@ -38,6 +44,39 @@ public class CombinedReportPersistenceService {
         }
 
         mckoCombinedReportDataRepository.saveAll(toSave);
+    }
+
+    private CombinedResultData pickBetterRecord(CombinedResultData first, CombinedResultData second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        // Приоритет: запись с результатами + ФГ > только результаты > только ФГ > пустая
+        int firstScore = qualityScore(first);
+        int secondScore = qualityScore(second);
+        if (secondScore > firstScore) {
+            return second;
+        }
+        if (secondScore < firstScore) {
+            return first;
+        }
+        // При равном качестве берем вторую как более "свежую" в текущей итерации
+        return second;
+    }
+
+    private int qualityScore(CombinedResultData data) {
+        if (data.isHasResultData() && data.isHasFGData()) {
+            return 3;
+        }
+        if (data.isHasResultData()) {
+            return 2;
+        }
+        if (data.isHasFGData()) {
+            return 1;
+        }
+        return 0;
     }
 
     private void fillEntity(MckoCombinedReportData entity, CombinedResultData combined) {
