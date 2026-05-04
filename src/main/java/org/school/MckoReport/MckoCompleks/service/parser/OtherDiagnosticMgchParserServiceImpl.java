@@ -67,32 +67,56 @@ public class OtherDiagnosticMgchParserServiceImpl implements OtherDiagnosticMgch
 
     private String extractSubjectForMgch(String text) {
         // 1. Явный "Предмет:"
-        Pattern pattern = Pattern.compile("Предмет:\\s*([^\\r\\n]+)", Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(text);
-        if (matcher.find()) {
-            return normalizeSubject(cleanSubject(matcher.group(1)));
+        Pattern explicitPattern = Pattern.compile("Предмет:\\s*([^\\r\\n]+)", Pattern.CASE_INSENSITIVE);
+        Matcher explicitMatcher = explicitPattern.matcher(text);
+        if (explicitMatcher.find()) {
+            String raw = explicitMatcher.group(1);
+            String cleaned = cleanSubject(raw);
+            if (hasText(cleaned)) {
+                return normalizeSubject(cleaned);
+            }
         }
 
-        // 2. Между "Дата:" и "Округ:" (как было, но с очисткой)
-        Pattern fallbackPattern = Pattern.compile(
-                "Дата:\\s*.+?\\s+(.+?)\\s+Округ:",
+        // 2. Универсальный поиск после "Дата:" до первого маркера (Округ, Школа, Класс) или конца строки
+        Pattern afterDatePattern = Pattern.compile(
+                "Дата:\\s*.*?\\s+(.+?)(?=\\s+(?:Округ|Школа|Класс):|\\r?\\n|$)",
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL
         );
-        Matcher fallbackMatcher = fallbackPattern.matcher(text);
-        if (fallbackMatcher.find()) {
-            String raw = fallbackMatcher.group(1).trim();
-            return normalizeSubject(cleanSubject(raw));
+        Matcher afterDateMatcher = afterDatePattern.matcher(text);
+        if (afterDateMatcher.find()) {
+            String raw = afterDateMatcher.group(1).trim();
+            String cleaned = cleanSubject(raw);
+            if (hasText(cleaned)) {
+                return normalizeSubject(cleaned);
+            }
         }
 
-        // 3. После "года" до ближайшего маркера или конца строки (как в обычном парсере)
-        Pattern yearPattern = Pattern.compile(
-                "\\bгода\\b\\s+(.+?)(?=\\s+(?:Округ|Школа|Класс):|\\r?\\n|$)",
+        // 3. Поиск после "года" или "г." (с точкой) до маркера или конца строки
+        Pattern afterYearPattern = Pattern.compile(
+                "\\b(?:года|г\\.)\\s+(.+?)(?=\\s+(?:Округ|Школа|Класс):|\\r?\\n|$)",
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL
         );
-        Matcher yearMatcher = yearPattern.matcher(text);
-        if (yearMatcher.find()) {
-            String raw = yearMatcher.group(1).trim();
-            return normalizeSubject(cleanSubject(raw));
+        Matcher afterYearMatcher = afterYearPattern.matcher(text);
+        if (afterYearMatcher.find()) {
+            String raw = afterYearMatcher.group(1).trim();
+            String cleaned = cleanSubject(raw);
+            if (hasText(cleaned)) {
+                return normalizeSubject(cleaned);
+            }
+        }
+
+        // 4. Поиск после даты в формате "число месяц год" (без слова "года")
+        Pattern numericDatePattern = Pattern.compile(
+                "(\\d{1,2}\\s+[а-я]+\\s+\\d{4})\\s+(.+?)(?=\\s+(?:Округ|Школа|Класс):|\\r?\\n|$)",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        );
+        Matcher numericDateMatcher = numericDatePattern.matcher(text);
+        if (numericDateMatcher.find()) {
+            String raw = numericDateMatcher.group(2).trim();
+            String cleaned = cleanSubject(raw);
+            if (hasText(cleaned)) {
+                return normalizeSubject(cleaned);
+            }
         }
 
         return "не указан";
