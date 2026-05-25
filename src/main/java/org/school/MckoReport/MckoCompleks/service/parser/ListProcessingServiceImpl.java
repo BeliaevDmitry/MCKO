@@ -454,7 +454,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                             !name.toLowerCase(Locale.ROOT).contains("фио") &&
                             !name.toLowerCase(Locale.ROOT).contains("код") &&
                             name.contains(" ") &&
-                            name.matches(".*[А-ЯЁ][а-яё]+.*[А-ЯЁ][а-яё]+.*")) {
+                            name.matches(".*[А-ЯЕ][а-яе]+.*[А-ЯЕ][а-яе]+.*")) {
 
                         studentCounter++;
                         ListStudentData student = new ListStudentData();
