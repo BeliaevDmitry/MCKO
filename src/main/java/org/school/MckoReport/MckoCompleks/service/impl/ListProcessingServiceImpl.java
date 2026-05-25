@@ -242,7 +242,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
             String subject = metadata.getOrDefault("subject", "");
 
 
-            List<ListStudentData> rawStudents = extractStudentsFromText(text);
+            List<ListStudentData> rawStudents = removeDuplicates(extractStudentsFromText(text));
 
             for (ListStudentData rawStudent : rawStudents) {
                 ListStudentData student = ListStudentData.builder()
@@ -259,6 +259,26 @@ public class ListProcessingServiceImpl implements ListProcessingService {
         }
 
         return students;
+    }
+
+    private List<ListStudentData> removeDuplicates(List<ListStudentData> rawStudents) {
+        if (rawStudents == null || rawStudents.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<String, ListStudentData> unique = new LinkedHashMap<>();
+
+        for (ListStudentData student : rawStudents) {
+            if (student == null) {
+                continue;
+            }
+            String code = student.getCode() == null ? "" : student.getCode().trim();
+            String name = student.getNameFIO() == null ? "" : student.getNameFIO().trim().toLowerCase();
+            String key = code + "|" + name;
+            unique.putIfAbsent(key, student);
+        }
+
+        return new ArrayList<>(unique.values());
     }
 
     /**
