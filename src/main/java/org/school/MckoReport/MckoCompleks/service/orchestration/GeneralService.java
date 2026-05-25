@@ -440,7 +440,7 @@ public class GeneralService {
                         s -> String.join("|", normalizeText(s.getSchool()), normalizeText(s.getSubject()), normalizeText(s.getDate()),
                                 normalizeText(s.getClassName()), String.valueOf(s.getStudentNumber()), normalizeText(s.getCode()), normalizeNameKey(s.getNameFIO())),
                         s -> s,
-                        (existing, replacement) -> existing,
+                        this::preferBetterNameRecord,
                         LinkedHashMap::new
                 )).values());
     }
@@ -475,7 +475,12 @@ public class GeneralService {
 
         List<ListStudentData> duplicatesStudents = groupedStudents.values().stream()
                 .filter(group -> group.size() > 1)
-                .flatMap(group -> group.stream().skip(1))
+                .flatMap(group -> {
+                    ListStudentData keeper = group.stream()
+                            .reduce(this::preferBetterNameRecord)
+                            .orElse(group.get(0));
+                    return group.stream().filter(item -> item.getId() != null && !item.getId().equals(keeper.getId()));
+                })
                 .collect(Collectors.toList());
 
         if (!duplicatesStudents.isEmpty()) {
@@ -498,6 +503,19 @@ public class GeneralService {
                 .replace('ѐ', 'е')
                 .replace('Ѐ', 'Е')
                 .replaceAll("\\s+", " ");
+    }
+
+    private ListStudentData preferBetterNameRecord(ListStudentData existing, ListStudentData replacement) {
+        boolean existingHasYo = containsYo(existing.getNameFIO());
+        boolean replacementHasYo = containsYo(replacement.getNameFIO());
+        if (!existingHasYo && replacementHasYo) {
+            return replacement;
+        }
+        return existing;
+    }
+
+    private boolean containsYo(String value) {
+        return value != null && (value.contains("ё") || value.contains("Ё"));
     }
 
     /**
