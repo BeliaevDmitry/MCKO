@@ -491,7 +491,12 @@ public class GeneralService {
         if (value == null) {
             return "";
         }
-        return value.trim().replace('ё', 'е').replace('Ё', 'Е').replaceAll("\\s+", " ");
+        return value.trim()
+                .replace('ё', 'е')
+                .replace('Ё', 'Е')
+                .replace('ѐ', 'е')
+                .replace('Ѐ', 'Е')
+                .replaceAll("\\s+", " ");
     }
 
     /**

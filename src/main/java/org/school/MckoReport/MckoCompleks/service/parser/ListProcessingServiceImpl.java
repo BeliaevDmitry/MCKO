@@ -476,6 +476,8 @@ public class ListProcessingServiceImpl implements ListProcessingService {
         return rawName
                 .replace('ё', 'е')
                 .replace('Ё', 'Е')
+                .replace('ѐ', 'е')
+                .replace('Ѐ', 'Е')
                 .replaceAll("\\s+", " ")
                 .trim();
     }
