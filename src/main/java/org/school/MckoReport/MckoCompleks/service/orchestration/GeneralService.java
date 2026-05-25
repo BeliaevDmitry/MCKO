@@ -102,6 +102,7 @@ public class GeneralService {
 
                         if (!students.isEmpty()) {
                             applySchoolName(students, schoolName);
+                            students = deduplicateListStudents(students);
                             // Сохраняем пакетами если нужно
                             if (AppConfig.BATCH_SIZE > 0 && students.size() > AppConfig.BATCH_SIZE) {
                                 saveInBatches(students, AppConfig.BATCH_SIZE);
@@ -212,6 +213,7 @@ public class GeneralService {
 
                         if (!resultFG.isEmpty()) {
                             applySchoolNameToFG(resultFG, schoolName);
+                            resultFG = deduplicateFGResults(resultFG);
                             // Сохраняем пакетами если нужно
                             if (AppConfig.BATCH_SIZE > 0 && resultFG.size() > AppConfig.BATCH_SIZE) {
                                 saveInBatchesFG(resultFG, AppConfig.BATCH_SIZE);
@@ -316,6 +318,7 @@ public class GeneralService {
 
                         if (!result.isEmpty()) {
                             applySchoolNameToResults(result, schoolName);
+                            result = deduplicateResults(result);
                             // Сохраняем пакетами если нужно
                             if (AppConfig.BATCH_SIZE > 0 && result.size() > AppConfig.BATCH_SIZE) {
                                 saveInBatchesResult(result, AppConfig.BATCH_SIZE);
@@ -428,6 +431,74 @@ public class GeneralService {
         }
     }
 
+
+
+    private List<ListStudentData> deduplicateListStudents(List<ListStudentData> source) {
+        return new ArrayList<>(source.stream()
+                .collect(Collectors.toMap(
+                        s -> String.join("|", normalizeText(s.getSchool()), normalizeText(s.getSubject()), normalizeText(s.getDate()),
+                                normalizeText(s.getClassName()), String.valueOf(s.getStudentNumber()), normalizeText(s.getCode()), normalizeNameKey(s.getNameFIO())),
+                        s -> s,
+                        (existing, replacement) -> existing,
+                        LinkedHashMap::new
+                )).values());
+    }
+
+    private List<StudentResultData> deduplicateResults(List<StudentResultData> source) {
+        return new ArrayList<>(source.stream()
+                .collect(Collectors.toMap(
+                        s -> String.join("|", normalizeText(s.getSchool()), normalizeText(s.getSubject()), normalizeText(s.getDate()),
+                                normalizeText(s.getClassName()), String.valueOf(s.getStudentNumber()), normalizeText(s.getCode())),
+                        s -> s,
+                        (existing, replacement) -> existing,
+                        LinkedHashMap::new
+                )).values());
+    }
+
+    private List<StudentResultFGData> deduplicateFGResults(List<StudentResultFGData> source) {
+        return new ArrayList<>(source.stream()
+                .collect(Collectors.toMap(
+                        s -> String.join("|", normalizeText(s.getSchool()), normalizeText(s.getSubject()), normalizeText(s.getDate()),
+                                normalizeText(s.getClassName()), normalizeText(s.getCode())),
+                        s -> s,
+                        (existing, replacement) -> existing,
+                        LinkedHashMap::new
+                )).values());
+    }
+
+    private void deduplicateDatabaseForSchool(String schoolName) {
+        List<ListStudentData> schoolStudents = listStudentDataRepository.findBySchool(schoolName);
+        Map<String, List<ListStudentData>> groupedStudents = schoolStudents.stream()
+                .collect(Collectors.groupingBy(s -> String.join("|", normalizeText(s.getSchool()), normalizeText(s.getSubject()), normalizeText(s.getDate()),
+                        normalizeText(s.getClassName()), String.valueOf(s.getStudentNumber()), normalizeText(s.getCode()), normalizeNameKey(s.getNameFIO()))));
+
+        List<ListStudentData> duplicatesStudents = groupedStudents.values().stream()
+                .filter(group -> group.size() > 1)
+                .flatMap(group -> group.stream().skip(1))
+                .collect(Collectors.toList());
+
+        if (!duplicatesStudents.isEmpty()) {
+            listStudentDataRepository.deleteAll(duplicatesStudents);
+            log.info("Удалено дубликатов list_student_data для {}: {}", schoolName, duplicatesStudents.size());
+        }
+    }
+
+    private String normalizeText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String normalizeNameKey(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim()
+                .replace('ё', 'е')
+                .replace('Ё', 'Е')
+                .replace('ѐ', 'е')
+                .replace('Ѐ', 'Е')
+                .replaceAll("\\s+", " ");
+    }
+
     /**
      * Создать объединенные отчеты Excel для каждой школы
      * (Аналог processResult() для отчетов)
@@ -442,7 +513,7 @@ public class GeneralService {
 
         for (String schoolName : AppConfig.SCHOOLS) {
             log.info("Создание общего отчета для школы: {}", schoolName);
-
+            deduplicateDatabaseForSchool(schoolName);
 
             // Получаем всех студентов школы
             List<ListStudentData> allStudents = listStudentDataRepository.findBySchool(schoolName);
