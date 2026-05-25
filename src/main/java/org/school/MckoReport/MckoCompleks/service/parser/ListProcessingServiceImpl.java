@@ -446,13 +446,13 @@ public class ListProcessingServiceImpl implements ListProcessingService {
 
                 if (matcher.find()) {
                     String code = matcher.group(1);
-                    String name = line.substring(0, matcher.start()).trim();
+                    String name = normalizeStudentName(line.substring(0, matcher.start()).trim());
 
                     if (!name.isEmpty() &&
                             !name.equals("участника") &&
                             !name.equals("обучающегося") &&
-                            !name.toLowerCase().contains("фио") &&
-                            !name.toLowerCase().contains("код") &&
+                            !name.toLowerCase(Locale.ROOT).contains("фио") &&
+                            !name.toLowerCase(Locale.ROOT).contains("код") &&
                             name.contains(" ") &&
                             name.matches(".*[А-ЯЁ][а-яё]+.*[А-ЯЁ][а-яё]+.*")) {
 
@@ -467,5 +467,16 @@ public class ListProcessingServiceImpl implements ListProcessingService {
             }
         }
         return students;
+    }
+
+    private String normalizeStudentName(String rawName) {
+        if (rawName == null) {
+            return "";
+        }
+        return rawName
+                .replace('ѐ', 'ё')
+                .replace('Ѐ', 'Ё')
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 }
