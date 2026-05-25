@@ -387,7 +387,7 @@ public class GeneralService {
         for (ListStudentData student : students) {
             student.setSchool(schoolName);
             student.setSubject(SubjectNormalizerUtil.normalize(student.getSubject()));
-            student.setNameFIO(normalizeNameKey(student.getNameFIO()));
+            student.setNameFIO(normalizeDisplayName(student.getNameFIO()));
         }
     }
 
@@ -493,6 +493,16 @@ public class GeneralService {
         return value == null ? "" : value.trim();
     }
 
+    private String normalizeDisplayName(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim()
+                .replace('ѐ', 'ё')
+                .replace('Ѐ', 'Ё')
+                .replaceAll("\\s+", " ");
+    }
+
     private String normalizeNameKey(String value) {
         if (value == null) {
             return "";
@@ -536,7 +546,7 @@ public class GeneralService {
 
             // Получаем всех студентов школы
             List<ListStudentData> allStudents = listStudentDataRepository.findBySchool(schoolName);
-            allStudents.forEach(student -> student.setNameFIO(normalizeNameKey(student.getNameFIO())));
+            allStudents.forEach(student -> student.setNameFIO(normalizeDisplayName(student.getNameFIO())));
             log.debug("длина allStudents {}", allStudents.size());
             if (allStudents.isEmpty()) {
                 totalFailed++;
