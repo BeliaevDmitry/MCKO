@@ -387,6 +387,7 @@ public class GeneralService {
         for (ListStudentData student : students) {
             student.setSchool(schoolName);
             student.setSubject(SubjectNormalizerUtil.normalize(student.getSubject()));
+            student.setNameFIO(normalizeNameKey(student.getNameFIO()));
         }
     }
 
@@ -535,6 +536,7 @@ public class GeneralService {
 
             // Получаем всех студентов школы
             List<ListStudentData> allStudents = listStudentDataRepository.findBySchool(schoolName);
+            allStudents.forEach(student -> student.setNameFIO(normalizeNameKey(student.getNameFIO())));
             log.debug("длина allStudents {}", allStudents.size());
             if (allStudents.isEmpty()) {
                 totalFailed++;
