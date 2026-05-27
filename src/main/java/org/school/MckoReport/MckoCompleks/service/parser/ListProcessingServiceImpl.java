@@ -441,7 +441,7 @@ public class ListProcessingServiceImpl implements ListProcessingService {
                     continue;
                 }
 
-                Pattern codePattern = Pattern.compile("(\\d{4}-\\d{4})$");
+                Pattern codePattern = Pattern.compile("(\\d{4}-\\d{4}|\\d+)$");
                 Matcher matcher = codePattern.matcher(line);
 
                 if (matcher.find()) {
