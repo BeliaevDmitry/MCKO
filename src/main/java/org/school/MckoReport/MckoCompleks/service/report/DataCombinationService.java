@@ -48,11 +48,8 @@ public class DataCombinationService {
         // 1) точная дата -> 2) месяц+год -> 3) учебный год
         List<StudentResultData> resultData = getResultData(school, subject, className);
         Map<String, StudentResultData> resultDataMap = getResultDataMap(resultData);
-        Map<String, StudentResultData> resultDataByStudentNumberMap = getResultDataByStudentNumberMap(resultData);
         Map<String, StudentResultData> resultDataByMonthYearMap = getResultDataByMonthYearMap(resultData);
-        Map<String, StudentResultData> resultDataByStudentNumberMonthYearMap = getResultDataByStudentNumberMonthYearMap(resultData);
         Map<String, StudentResultData> resultDataBySchoolYearMap = getResultDataBySchoolYearMap(resultData);
-        Map<String, StudentResultData> resultDataByStudentNumberSchoolYearMap = getResultDataByStudentNumberSchoolYearMap(resultData);
 
         // Собираем ФГ результаты в Map для быстрого поиска
         List<StudentResultFGData> fgData = getFGData(school, subject, className);
@@ -67,11 +64,8 @@ public class DataCombinationService {
             CombinedResultData combined = createCombinedData(
                     student,
                     resultDataMap,
-                    resultDataByStudentNumberMap,
                     resultDataByMonthYearMap,
-                    resultDataByStudentNumberMonthYearMap,
                     resultDataBySchoolYearMap,
-                    resultDataByStudentNumberSchoolYearMap,
                     fgDataMap,
                     fgDataByMonthYearMap,
                     fgDataBySchoolYearMap
@@ -113,16 +107,6 @@ public class DataCombinationService {
                 ));
     }
 
-    private Map<String, StudentResultData> getResultDataByStudentNumberMap(List<StudentResultData> resultData) {
-        return resultData.stream()
-                .filter(data -> data.getStudentNumber() != null)
-                .collect(Collectors.toMap(
-                        data -> generateStudentNumberKey(data.getStudentNumber(), data.getSubject(), data.getDate(), data.getSchool()),
-                        Function.identity(),
-                        (existing, replacement) -> existing
-                ));
-    }
-
     private Map<String, StudentResultData> getResultDataByMonthYearMap(List<StudentResultData> resultData) {
         return resultData.stream()
                 .filter(data -> hasText(data.getCode()))
@@ -134,34 +118,12 @@ public class DataCombinationService {
                 ));
     }
 
-    private Map<String, StudentResultData> getResultDataByStudentNumberMonthYearMap(List<StudentResultData> resultData) {
-        return resultData.stream()
-                .filter(data -> data.getStudentNumber() != null)
-                .filter(data -> hasText(extractMonthYear(data.getDate())))
-                .collect(Collectors.toMap(
-                        data -> generateStudentNumberMonthYearKey(data.getStudentNumber(), data.getSubject(), data.getDate(), data.getSchool()),
-                        Function.identity(),
-                        (existing, replacement) -> existing
-                ));
-    }
-
     private Map<String, StudentResultData> getResultDataBySchoolYearMap(List<StudentResultData> resultData) {
         return resultData.stream()
                 .filter(data -> hasText(data.getCode()))
                 .filter(data -> hasText(resolveSchoolYear(data.getSchoolYear(), data.getDate())))
                 .collect(Collectors.toMap(
                         data -> generateSchoolYearKey(data.getCode(), data.getSubject(), data.getSchoolYear(), data.getDate(), data.getSchool()),
-                        Function.identity(),
-                        (existing, replacement) -> existing
-                ));
-    }
-
-    private Map<String, StudentResultData> getResultDataByStudentNumberSchoolYearMap(List<StudentResultData> resultData) {
-        return resultData.stream()
-                .filter(data -> data.getStudentNumber() != null)
-                .filter(data -> hasText(resolveSchoolYear(data.getSchoolYear(), data.getDate())))
-                .collect(Collectors.toMap(
-                        data -> generateStudentNumberSchoolYearKey(data.getStudentNumber(), data.getSubject(), data.getSchoolYear(), data.getDate(), data.getSchool()),
                         Function.identity(),
                         (existing, replacement) -> existing
                 ));
@@ -221,24 +183,12 @@ public class DataCombinationService {
         return String.format("%s_%s_%s_%s", code, subject, date, school);
     }
 
-    private String generateStudentNumberKey(Integer studentNumber, String subject, String date, String school) {
-        return String.format("%s_%s_%s_%s", studentNumber, subject, date, school);
-    }
-
     private String generateMonthYearKey(String code, String subject, String date, String school) {
         return String.format("%s_%s_%s_%s", code, subject, extractMonthYear(date), school);
     }
 
-    private String generateStudentNumberMonthYearKey(Integer studentNumber, String subject, String date, String school) {
-        return String.format("%s_%s_%s_%s", studentNumber, subject, extractMonthYear(date), school);
-    }
-
     private String generateSchoolYearKey(String code, String subject, String schoolYear, String date, String school) {
         return String.format("%s_%s_%s_%s", code, subject, resolveSchoolYear(schoolYear, date), school);
-    }
-
-    private String generateStudentNumberSchoolYearKey(Integer studentNumber, String subject, String schoolYear, String date, String school) {
-        return String.format("%s_%s_%s_%s", studentNumber, subject, resolveSchoolYear(schoolYear, date), school);
     }
 
     private String extractMonthYear(String date) {
@@ -276,11 +226,8 @@ public class DataCombinationService {
     private CombinedResultData createCombinedData(
             ListStudentData student,
             Map<String, StudentResultData> resultDataMap,
-            Map<String, StudentResultData> resultDataByStudentNumberMap,
             Map<String, StudentResultData> resultDataByMonthYearMap,
-            Map<String, StudentResultData> resultDataByStudentNumberMonthYearMap,
             Map<String, StudentResultData> resultDataBySchoolYearMap,
-            Map<String, StudentResultData> resultDataByStudentNumberSchoolYearMap,
             Map<String, StudentResultFGData> fgDataMap,
             Map<String, StudentResultFGData> fgDataByMonthYearMap,
             Map<String, StudentResultFGData> fgDataBySchoolYearMap) {
@@ -299,21 +246,6 @@ public class DataCombinationService {
                         generateSchoolYearKey(student.getCode(), student.getSubject(), student.getSchoolYear(), student.getDate(), student.getSchool())
                 );
             }
-        }
-        if (resultData == null) {
-            resultData = resultDataByStudentNumberMap.get(
-                    generateStudentNumberKey(student.getStudentNumber(), student.getSubject(), student.getDate(), student.getSchool())
-            );
-        }
-        if (resultData == null) {
-            resultData = resultDataByStudentNumberMonthYearMap.get(
-                    generateStudentNumberMonthYearKey(student.getStudentNumber(), student.getSubject(), student.getDate(), student.getSchool())
-            );
-        }
-        if (resultData == null) {
-            resultData = resultDataByStudentNumberSchoolYearMap.get(
-                    generateStudentNumberSchoolYearKey(student.getStudentNumber(), student.getSubject(), student.getSchoolYear(), student.getDate(), student.getSchool())
-            );
         }
         StudentResultFGData fgData = null;
         if (hasText(student.getCode())) {
