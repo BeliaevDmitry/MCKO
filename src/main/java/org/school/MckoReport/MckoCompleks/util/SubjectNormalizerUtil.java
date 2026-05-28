@@ -41,6 +41,18 @@ public class SubjectNormalizerUtil {
         return normalized;
     }
 
+    public static String normalizeForMatching(String subject) {
+        String normalized = normalize(subject);
+        if (normalized.isEmpty()) {
+            return normalized;
+        }
+
+        return normalized
+                .replaceAll("(?iu)\\(\\s*([^)]*?)\\s*[-–—]\\s*[^)]*\\)", "($1)")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
     private static String trimByMetadataMarkers(String value) {
         int districtIndex = findMarkerIndex(value, DISTRICT_MARKER_REGEX);
         int schoolIndex = findMarkerIndex(value, SCHOOL_MARKER_REGEX);

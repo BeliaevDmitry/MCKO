@@ -732,7 +732,7 @@ public class GeneralService {
     }
 
     private String normalizeSubjectToken(String subject) {
-        return SubjectNormalizerUtil.normalize(subject);
+        return SubjectNormalizerUtil.normalizeForMatching(subject);
     }
 
     private String normalizeClassToken(String className) {

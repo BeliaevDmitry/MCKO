@@ -10,6 +10,7 @@ import org.school.MckoReport.MckoCompleks.model.ListStudentData;
 import org.school.MckoReport.MckoCompleks.model.OtherDiagnosticData;
 import org.school.MckoReport.MckoCompleks.model.StudentResultData;
 import org.school.MckoReport.MckoCompleks.model.StudentResultFGData;
+import org.school.MckoReport.MckoCompleks.util.SubjectNormalizerUtil;
 import org.school.MckoReport.MckoCompleks.util.TaskScoresConverter;
 import org.springframework.stereotype.Service;
 
@@ -217,7 +218,7 @@ public class ExcelExportService {
         Map<String, WorkSummary> workSummaryMap = new LinkedHashMap<>();
 
         for (ListStudentData student : allStudents) {
-            String normalizedSubject = normalizeSubjectName(student.getSubject());
+            String normalizedSubject = normalizeSubjectForWorkKey(student.getSubject());
             String normalizedClass = normalizeClassName(student.getClassName());
             String key = buildWorkKey(student.getSchool(), normalizedSubject, student.getDate(), normalizedClass, student.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
@@ -226,7 +227,7 @@ public class ExcelExportService {
         }
 
         for (StudentResultData result : allStudentResults) {
-            String normalizedSubject = normalizeSubjectName(result.getSubject());
+            String normalizedSubject = normalizeSubjectForWorkKey(result.getSubject());
             String normalizedClass = normalizeClassName(result.getClassName());
             String key = buildWorkKey(result.getSchool(), normalizedSubject, result.getDate(), normalizedClass, result.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
@@ -235,7 +236,7 @@ public class ExcelExportService {
         }
 
         for (StudentResultFGData fgResult : allStudentFGResults) {
-            String normalizedSubject = normalizeSubjectName(fgResult.getSubject());
+            String normalizedSubject = normalizeSubjectForWorkKey(fgResult.getSubject());
             String normalizedClass = normalizeClassName(fgResult.getClassName());
             String key = buildWorkKey(fgResult.getSchool(), normalizedSubject, fgResult.getDate(), normalizedClass, fgResult.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
@@ -244,7 +245,7 @@ public class ExcelExportService {
         }
 
         for (OtherDiagnosticData diagnostic : allOtherDiagnosticResults) {
-            String normalizedSubject = normalizeSubjectName(diagnostic.getSubject());
+            String normalizedSubject = normalizeSubjectForWorkKey(diagnostic.getSubject());
             String normalizedClass = normalizeClassName(diagnostic.getClassName());
             String key = buildWorkKey(diagnostic.getSchool(), normalizedSubject, diagnostic.getDate(), normalizedClass, diagnostic.getSchoolYear());
             WorkSummary summary = workSummaryMap.computeIfAbsent(key,
@@ -406,6 +407,10 @@ public class ExcelExportService {
                 .replaceAll("(?i)\\bкласс\\b\\s*:?\\s*.*$", "")
                 .replaceAll("\\s+", " ")
                 .trim();
+    }
+
+    private String normalizeSubjectForWorkKey(String subject) {
+        return SubjectNormalizerUtil.normalizeForMatching(normalizeSubjectName(subject));
     }
 
     private static class WorkSummary {
