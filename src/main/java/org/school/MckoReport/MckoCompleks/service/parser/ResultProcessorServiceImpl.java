@@ -123,7 +123,10 @@ public class ResultProcessorServiceImpl implements ResultProcessorService {
                 case "Фамилия, имя": indexes.nameIdx = i; break;
                 case "№ уч.": indexes.studentNumberIdx = i; break;
                 case "Вариант": indexes.variantIdx = i; break;
-                case "Код диагн.": indexes.codeIdx = i; break;
+                case "Код диагн.":
+                case "Код участника":
+                    indexes.codeIdx = i;
+                    break;
                 case "Балл": indexes.ballIdx = i; break;
                 case "% вып.": indexes.percentIdx = i; break;
                 case "Отметка": indexes.markIdx = i; break;
