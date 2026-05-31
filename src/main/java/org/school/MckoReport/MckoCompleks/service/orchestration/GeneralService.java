@@ -470,8 +470,7 @@ public class GeneralService {
     private void deduplicateDatabaseForSchool(String schoolName) {
         List<ListStudentData> schoolStudents = listStudentDataRepository.findBySchool(schoolName);
         Map<String, List<ListStudentData>> groupedStudents = schoolStudents.stream()
-                .collect(Collectors.groupingBy(s -> String.join("|", normalizeText(s.getSchool()), normalizeText(s.getSubject()), normalizeText(s.getDate()),
-                        normalizeText(s.getClassName()), String.valueOf(s.getStudentNumber()), normalizeText(s.getCode()), normalizeNameKey(s.getNameFIO()))));
+                .collect(Collectors.groupingBy(this::buildListStudentDuplicateKey));
 
         List<ListStudentData> duplicatesStudents = groupedStudents.values().stream()
                 .filter(group -> group.size() > 1)
@@ -487,6 +486,100 @@ public class GeneralService {
             listStudentDataRepository.deleteAll(duplicatesStudents);
             log.info("Удалено дубликатов list_student_data для {}: {}", schoolName, duplicatesStudents.size());
         }
+
+        List<StudentResultData> resultDuplicates = findDuplicates(
+                studentResultDataRepository.findBySchool(schoolName),
+                this::buildStudentResultDuplicateKey
+        );
+        if (!resultDuplicates.isEmpty()) {
+            studentResultDataRepository.deleteAll(resultDuplicates);
+            log.info("Удалено дубликатов list_result_data для {}: {}", schoolName, resultDuplicates.size());
+        }
+
+        List<StudentResultFGData> fgDuplicates = findDuplicates(
+                studentResultFGDataRepository.findBySchool(schoolName),
+                this::buildStudentResultFGDuplicateKey
+        );
+        if (!fgDuplicates.isEmpty()) {
+            studentResultFGDataRepository.deleteAll(fgDuplicates);
+            log.info("Удалено дубликатов result_fg_data для {}: {}", schoolName, fgDuplicates.size());
+        }
+
+        List<OtherDiagnosticData> diagnosticDuplicates = findDuplicates(
+                otherDiagnosticDataRepository.findBySchool(schoolName),
+                this::buildOtherDiagnosticDuplicateKey
+        );
+        if (!diagnosticDuplicates.isEmpty()) {
+            otherDiagnosticDataRepository.deleteAll(diagnosticDuplicates);
+            log.info("Удалено дубликатов other_diagnostic_data для {}: {}", schoolName, diagnosticDuplicates.size());
+        }
+    }
+
+    private <T> List<T> findDuplicates(List<T> source, java.util.function.Function<T, String> keyExtractor) {
+        return source.stream()
+                .collect(Collectors.groupingBy(keyExtractor, LinkedHashMap::new, Collectors.toList()))
+                .values()
+                .stream()
+                .filter(group -> group.size() > 1)
+                .flatMap(group -> group.stream().skip(1))
+                .collect(Collectors.toList());
+    }
+
+    private String buildListStudentDuplicateKey(ListStudentData student) {
+        return String.join("|",
+                normalizeText(student.getSchool()),
+                normalizeText(student.getSubject()),
+                normalizeText(student.getDate()),
+                normalizeText(student.getClassName()),
+                String.valueOf(student.getStudentNumber()),
+                normalizeText(student.getCode()),
+                normalizeNameKey(student.getNameFIO())
+        );
+    }
+
+    private String buildStudentResultDuplicateKey(StudentResultData result) {
+        return String.join("|",
+                normalizeText(result.getSchool()),
+                normalizeText(result.getSubject()),
+                normalizeText(result.getDate()),
+                normalizeText(result.getClassName()),
+                String.valueOf(result.getStudentNumber()),
+                normalizeText(result.getCode()),
+                String.valueOf(result.getVariant()),
+                String.valueOf(result.getBall()),
+                String.valueOf(result.getPercentCompleted()),
+                String.valueOf(result.getMark()),
+                normalizeText(result.getTaskScores())
+        );
+    }
+
+    private String buildStudentResultFGDuplicateKey(StudentResultFGData result) {
+        return String.join("|",
+                normalizeText(result.getSchool()),
+                normalizeText(result.getSubject()),
+                normalizeText(result.getDate()),
+                normalizeText(result.getClassName()),
+                normalizeText(result.getCode()),
+                normalizeText(result.getOverallPercent()),
+                normalizeText(result.getMasteryLevel()),
+                normalizeText(result.getSection1Percent()),
+                normalizeText(result.getSection2Percent()),
+                normalizeText(result.getSection3Percent()),
+                normalizeText(result.getSchoolYear())
+        );
+    }
+
+    private String buildOtherDiagnosticDuplicateKey(OtherDiagnosticData diagnostic) {
+        return String.join("|",
+                normalizeText(diagnostic.getSchool()),
+                normalizeText(diagnostic.getSubject()),
+                normalizeText(diagnostic.getDate()),
+                normalizeText(diagnostic.getClassName()),
+                normalizeText(diagnostic.getAvgPercent()),
+                normalizeText(diagnostic.getCityPercent()),
+                normalizeText(diagnostic.getSchoolYear()),
+                normalizeText(diagnostic.getFileName())
+        );
     }
 
     private String normalizeText(String value) {
